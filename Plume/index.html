@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, user-scalable=no">
+<title>Plume</title>
+<link rel="stylesheet" href="css/plume.css">
+<!-- Samsung's TV APIs: present only on the TV. The page also runs in a desktop browser without them. -->
+<script src="$WEBAPIS/webapis/webapis.js"></script>
+</head>
+<body class="light">
+<div id="wall"><img id="wallImg" alt=""><img id="wallNext" alt=""></div>
+
+<main id="home">
+  <header class="top">
+    <div class="when">
+      <div id="clock" class="clock">--:--</div>
+      <div class="dateline"><span id="date"></span><span id="weather" class="weather"></span></div>
+      <div id="strip" class="strip" hidden></div>
+    </div>
+    <nav class="icons" id="icons">
+      <span class="icon net" id="net" title="Network"></span>
+      <button class="icon" data-act="allapps" data-key="allapps" title="All apps"></button>
+      <button class="icon" data-act="settings" data-key="settings" title="Settings"></button>
+    </nav>
+  </header>
+  <div class="spacer"></div>
+  <section id="appsSec" class="sec">
+    <div id="appRow" class="row apps"></div>
+    <div id="rowLabel" class="row-label"></div>
+  </section>
+  <section id="matchSec" class="sec" hidden>
+    <h2 id="matchHead" data-key="fold:matches">Today's matches <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg><small id="matchCount"></small></h2>
+    <div id="matchRow" class="row matches"></div>
+  </section>
+  <section id="cwSec" class="sec">
+    <h2 id="cwHead" data-key="fold:cw">Continue Watching <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></h2>
+    <div id="cwRow" class="row cw"></div>
+  </section>
+</main>
+
+<div id="centre" class="overlay" hidden></div>
+<div id="allApps" class="overlay" hidden></div>
+<div id="show" class="overlay" hidden></div>
+<div id="settings" class="panel" hidden></div>
+<div id="dialog" class="dialog-wrap" hidden></div>
+<div id="banner" class="banner" hidden></div>
+<div id="sleep" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="vendor/qrcode.js"></script>
+<script src="js/util.js"></script>
+<script src="js/store.js"></script>
+<script src="js/glyphs.js"></script>
+<script src="js/tv.js"></script>
+<script src="js/apps.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/plex.js"></script>
+<script src="js/football.js"></script>
+<script src="js/alerts.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/home.js"></script>
+<script src="js/centre.js"></script>
+<script src="js/show.js"></script>
+<script src="js/allapps.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/sleep.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
