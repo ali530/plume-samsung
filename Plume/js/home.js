@@ -269,7 +269,8 @@
       if (!hold) { P.Plex.open(card); return; }
       var rest = (card.type === 'episode' ? [{ label: 'Episodes', icon: 'list', act: function () { P.Show.open(card); } }] : []).concat([
         { label: 'Open in the Plex app', icon: 'grid', act: function () { P.Plex.openApp(card); } },
-        { label: 'Hide (Plume only)', icon: 'eyeOff', act: function () { P.Plex.hide(card); } }]);
+        { label: 'Remove from Continue Watching', icon: 'eyeOff', act: function () { P.Plex.hide(card); } },
+        { label: card.type === 'episode' ? 'Hide this show' : 'Hide this movie', icon: 'eyeOff', act: function () { P.Plex.hideAll(card); } }]);
       if (!card.copies || card.copies.length < 2) { P.UI.menu(cur, card.title, [{ label: 'Play', icon: 'play', act: function () { P.Plex.open(card); } }].concat(rest)); return; }
       // the title is on your server more than once: one Play row per version, the one that would play first
       P.Plex.versions(card).then(function (vs) {

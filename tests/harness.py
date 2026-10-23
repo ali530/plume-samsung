@@ -76,7 +76,7 @@ PLEX_ITEMS = [
     {'ratingKey': '101', 'key': '/library/metadata/101', 'guid': 'plex://movie/ridge', 'lastViewedAt': 200, 'type': 'movie', 'title': 'The Long Ridge', 'duration': 8100000, 'viewOffset': 1100000, 'art': '/art/0'},
     {'ratingKey': '201', 'key': '/library/metadata/201', 'guid': 'plex://movie/ridge', 'lastViewedAt': 100, 'type': 'movie', 'title': 'The Long Ridge', 'duration': 8100000, 'viewOffset': 900000, 'art': '/art/0'},
     {'ratingKey': '102', 'key': '/library/metadata/102', 'type': 'episode', 'grandparentTitle': 'Harbour Lights', 'title': 'Low Tide', 'parentIndex': 1, 'index': 3, 'duration': 3300000, 'viewOffset': 1380000, 'thumb': '/art/1'},
-    {'ratingKey': '103', 'key': '/library/metadata/103', 'type': 'episode', 'grandparentTitle': 'Northbound', 'title': 'Chapter Eight', 'parentIndex': 2, 'index': 8, 'duration': 2700000, 'viewOffset': 2520000, 'thumb': '/art/2'},
+    {'ratingKey': '103', 'key': '/library/metadata/103', 'type': 'episode', 'grandparentTitle': 'Northbound', 'grandparentRatingKey': 'NB', 'title': 'Chapter Eight', 'parentIndex': 2, 'index': 8, 'duration': 2700000, 'viewOffset': 2520000, 'thumb': '/art/2'},
     {'ratingKey': '104', 'key': '/library/metadata/104', 'type': 'episode', 'grandparentTitle': 'Field Notes', 'title': 'Pilot', 'parentIndex': 2, 'index': 7, 'duration': 2600000, 'viewOffset': 560000, 'thumb': '/art/3'},
     {'ratingKey': '105', 'key': '/library/metadata/105', 'type': 'movie', 'title': 'Sand and Stars', 'duration': 7600000, 'viewOffset': 900000, 'art': '/art/4'},
 ]
@@ -393,6 +393,13 @@ async def main():
         await shot('14-sleep')
         await key('ArrowDown'); await pg.wait_for_timeout(800)
         check('any key closes the sleep screen', not await ev_("P.Sleep.active"))
+        # hide a whole show from Plume; Settings → Plex → Hidden brings it back
+        await ev_("P.Plex.hideAll(P.Plex.items.filter(c=>c.title=='Northbound')[0])"); await pg.wait_for_timeout(300)
+        await ev_("P.Plex.refresh()"); await pg.wait_for_timeout(1200)
+        check('Hide this show: gone, also after a refresh', not await ev_("P.Plex.items.some(c=>c.title=='Northbound')") and await ev_("P.Plex.items.length") > 0)
+        check('listed under Hidden', await ev_("P.Plex.hiddenList().map(h=>h.title+':'+h.kind).join()") == 'Northbound:show')
+        await ev_("P.Plex.unhide(P.Plex.hiddenList()[0])"); await pg.wait_for_timeout(1200)
+        check('OK in Hidden brings it back', await ev_("P.Plex.items.some(c=>c.title=='Northbound')"))
         check('no Plex/football errors', not await ev_("P.Football.error"))
 
         await b.close()

@@ -114,6 +114,7 @@
       image: img ? srv.uri + '/photo/:/transcode?width=440&height=248&minSize=1&upscale=1&url=' + encodeURIComponent(img) + '&X-Plex-Token=' + encodeURIComponent(srv.token) : '',
       plexKey: m.key, guid: m.guid || ((m.grandparentTitle || '') + '|' + m.title + '|' + (m.year || '')),
       viewed: m.lastViewedAt || 0, offset: m.viewOffset || 0, type: m.type, lib: m.librarySectionTitle || '',
+      show: isEp ? { id: m.grandparentGuid || String(m.grandparentRatingKey || ''), title: m.grandparentTitle || '' } : null,
       res: String(((m.Media || [])[0] || {}).videoResolution || '').toLowerCase()
     };
   }
@@ -321,13 +322,32 @@
   function isHidden(c, hidden) {
     return hidden.some(function (h) {
       if (typeof h === 'string') return h === c.key;
+      if (h.kind === 'show') return !!(c.show && c.show.id && c.show.id === h.id);
+      if (h.kind === 'movie') return c.guid === h.id;
       return (h.guid === c.guid || h.key === c.key) && (c.viewed || 0) <= (h.viewed || 0);
     });
   }
   X.hide = function (card) {
-    var h = P.S.get('plexHidden').slice(); h.push({ key: card.key, guid: card.guid, viewed: card.viewed || 0 }); P.S.set('plexHidden', h.slice(-200));
+    var h = P.S.get('plexHidden').slice(); h.push({ key: card.key, guid: card.guid, viewed: card.viewed || 0 }); P.S.set('plexHidden', h.slice(-300));
     X.items = X.items.filter(function (c) { return c.key !== card.key; });
     P.bus.emit('plex');
+  };
+
+  /* Hide a whole show (every episode, also ones watched later) or a movie from Plume; Plex keeps them.
+     Settings → Plex → Hidden lists them, and OK there brings one back. */
+  X.hideAll = function (card) {
+    var h = P.S.get('plexHidden').slice();
+    var e = card.show && card.show.id ? { kind: 'show', id: card.show.id, title: card.show.title || card.title } : { kind: 'movie', id: card.guid, title: card.title };
+    if (!e.id) { X.hide(card); return; }
+    h.push(e); P.S.set('plexHidden', h.slice(-300));
+    X.items = X.items.filter(function (c) { return !isHidden(c, [e]); });
+    P.bus.emit('plex');
+    P.UI.toast(P.esc(e.title) + ' is hidden · Settings → Plex → Hidden brings it back');
+  };
+  X.hiddenList = function () { return P.S.get('plexHidden').filter(function (h) { return h && (h.kind === 'show' || h.kind === 'movie'); }); };
+  X.unhide = function (entry) {
+    P.S.set('plexHidden', P.S.get('plexHidden').filter(function (h) { return !(h && h.kind === entry.kind && h.id === entry.id); }));
+    X.refresh();
   };
 
   X.hdrs = hdrs;

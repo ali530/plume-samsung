@@ -31,6 +31,7 @@
         { section: 'Plex' },
         { label: 'Account', value: function () { return plex ? plex.user : 'Sign in'; }, act: function () { if (get('plex')) S.plexSignOut(); else S.plexSignIn(); } },
         plex ? { label: 'Default quality', value: function () { return { last: 'Last played', '4k': '4K', '1080': '1080p' }[get('plexCopy')]; }, act: cycle('plexCopy', ['last', '4k', '1080']) } : null,
+        plex ? { label: 'Hidden', value: function () { var n = P.Plex.hiddenList().length; return n ? n + (n === 1 ? ' title' : ' titles') : 'None'; }, open: 'hidden' } : null,
         plex ? { label: 'Next episode', value: function () { return get('autoNext') ? 'Plays automatically' : 'Ask first'; }, act: function () { set('autoNext', !get('autoNext')); } } : null,
         { section: 'Football' },
         { label: 'Competitions', value: function () { var c = get('comps'); return Object.keys(c).filter(function (k) { return c[k]; }).length + ' of ' + F.COMPS.length; }, open: 'comps' },
@@ -84,6 +85,10 @@
           [{ section: 'Last attempt' }],
           (get('plexLog') || []).length ? get('plexLog').map(function (l) { return { label: l, act: function () {} }; }) : [{ label: 'Open a Continue Watching card first', act: function () {} }]) },
 
+      hidden: { title: 'Hidden', note: 'Shows and movies hidden from Continue Watching. OK brings one back.', rows: P.Plex.hiddenList().map(function (h) {
+        return { label: h.title || 'Untitled', sub: h.kind === 'show' ? 'Show' : 'Movie', toggle: function () { return P.Plex.hiddenList().some(function (x) { return x.kind === h.kind && x.id === h.id; }); },
+          act: function () { if (P.Plex.hiddenList().some(function (x) { return x.kind === h.kind && x.id === h.id; })) P.Plex.unhide(h); else { var l = P.S.get('plexHidden').slice(); l.push(h); P.S.set('plexHidden', l); P.Plex.refresh(); } } };
+      }) },
       server: { title: 'Plex server', rows: ((plex && plex.servers) || []).map(function (n) {
         return { label: n, radio: true, toggle: function () { return ((get('plex') || {}).server || {}).name === n; },
           act: function () { P.UI.toast('Connecting to ' + P.esc(n) + '…'); P.Plex.useServer(n).then(function () { S.render(); }, function (e) { P.UI.toast(P.esc(e.message)); }); } };
