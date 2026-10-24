@@ -69,7 +69,7 @@
     root.innerHTML = '<iframe id="ytFrame" allow="autoplay; encrypted-media; fullscreen" referrerpolicy="strict-origin-when-cross-origin" src="' +
       P.esc(Y.page + '?v=' + encodeURIComponent(v.id) + '&hl=' + (/[؀-ۿ]/.test(v.title) ? 'ar' : 'en')) + '"></iframe>' +
       '<div class="ytp-wait" id="ytWait"><i></i></div>' +
-      '<div class="ytp-hint" id="ytHint"><span class="key">OK</span>Open it in YouTube instead</div>' +
+      '<div class="ytp-hint" id="ytHint">An ad? <span class="key">OK</span>Open it in the YouTube app (no ads with your subscription) · Settings → Football → Highlights play in</div>' +
       '<div class="ytp-ui"><div class="ytp-top"><div class="ytp-t">' + P.esc(v.title) + '</div><div class="ytp-c">' + P.esc(v.channel) + '</div></div>' +
       '<div class="ytp-bottom"><span class="ytp-pp" id="ytPP"></span><div class="ytp-bar"><i id="ytFill"></i></div><span class="ytp-time" id="ytT"></span></div></div>';
     document.body.appendChild(root);
@@ -108,7 +108,8 @@
     name: 'youtube',
     key: function (k) {
       if (!st) return;
-      if (k === 'back' || k === 'stop') { Y.close(); return; }
+      if (k === 'stop') { Y.close(); return; }
+      if (k === 'back') { if (root.classList.contains('ui-on') && !st.paused) { clearTimeout(st.hideT); root.classList.remove('ui-on'); return; } Y.close(); return; }
       if (k === 'ok' && st.offerApp && !st.playing) { toApp(''); return; }
       if (k === 'ok' || k === 'pp') { toggle(); return; }
       if (k === 'left' || k === 'rw') { cmd('seek', -10); show(); return; }

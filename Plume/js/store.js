@@ -21,6 +21,7 @@
     plexPicks: {},
     subOffsets: {},                // subtitle timing you set, per episode/film and subtitle (ms)                 // per title (Plex guid): the version you last played in Plume {key, at}
     folded: {},                    // rows folded away on the home screen: {cw: true, matches: true}
+    highlightsIn: 'plume',         // where highlights play: plume (in Plume) | app (the YouTube app: your account, no ads)
     matchAlerts: true,             // kick-off, goals and full time of your teams' matches and reminded ones
     autoNext: true,                // play the next episode after the countdown
     plex: null,                    // {token, user, server:{name, uri, token}}

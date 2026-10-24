@@ -135,7 +135,7 @@
   };
 
   /* play one inside Plume (YouTube's embedded player); the YouTube app when that's not allowed */
-  H.play = function (v) { if (P.YT) P.YT.open(v); else H.playApp(v); };
+  H.play = function (v) { if (P.S.get('highlightsIn') === 'plume' && P.YT) P.YT.open(v); else H.playApp(v); };
   H.playApp = function (v) {
     var it = P.Apps.items['app:youtube'], ids = (it && it.ids.length ? it.ids : ['111299001912', 'com.samsung.tv.cobalt-yt']);
     P.TV.launchWithData(ids[0], { PAYLOAD: JSON.stringify({ values: 'v=' + v.id }) }, null, function () { P.UI.toast("Couldn't open YouTube"); });
