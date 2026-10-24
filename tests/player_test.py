@@ -10,15 +10,23 @@ from playwright.async_api import async_playwright
 AVPLAY = """
 window.__av = [];
 (function(){
-  var l = null, t = 0, timer = null, dur = 3300000, url = '';
+  var l = null, t = 0, timer = null, dur = 3300000, url = '', pendingErr = null;
   function rec(){ window.__av.push([].slice.call(arguments)); }
-  function run(){ clearInterval(timer); timer = setInterval(function(){ t += 1000; l && l.oncurrentplaytime && l.oncurrentplaytime(t); if (t >= dur) { clearInterval(timer); l.onstreamcompleted(); } }, 250); }
+  // like the TV: a converted stream may report the title's own time (window.__absTime)
+  function off(){ return url.indexOf('m3u8') > 0 || url.indexOf('index.m3u8') > 0 ? (+(/offset=(\\d+)/.exec(url)||[0,0])[1]) * 1000 : 0; }
+  function run(){ clearInterval(timer); timer = setInterval(function(){ t += 1000; var rep = t + (window.__absTime && !/file\\.mkv/.test(url) ? (window.__lastOffset || 0) : 0); l && l.oncurrentplaytime && l.oncurrentplaytime(rep); if (t >= dur) { clearInterval(timer); l.onstreamcompleted(); } }, 250); }
   window.webapis = window.webapis || {};
   webapis.avplay = {
-    open: function(u){ if (window.__avReject > 0) { window.__avReject--; rec('refused', u); throw {name:'InvalidValuesError'}; } url = u; t = 0; rec('open', u); },
+    open: function(u){ if (window.__avReject > 0) { window.__avReject--; rec('refused', u); throw {name:'InvalidValuesError'}; }
+      // like the TV: interrupting a start reports an error for the old one, a moment later
+      if (pendingErr && window.__staleErrors) { var pe = pendingErr; setTimeout(function(){ pe({name:'PLAYER_ERROR_INVALID_OPERATION'}); }, 5); }
+      pendingErr = null; url = u; t = 0; clearInterval(timer); rec('open', u); },
     setDisplayRect: function(x,y,w,h){ if (w < 2) throw {name:'TypeMismatchError'}; rec('rect'); }, setDisplayMethod: function(){}, setStreamingProperty: function(k,v){ rec('prop', k, v); },
     setListener: function(x){ l = x; },
-    prepareAsync: function(ok){ rec('prepare'); setTimeout(ok, 60); },
+    prepareAsync: function(ok, err){ rec('prepare'); pendingErr = err || null; var mine = err;
+      setTimeout(function(){ if (pendingErr !== mine) return; pendingErr = null;
+        if (window.__failBurn && url.indexOf('subtitles=burn') > 0) { setTimeout(function(){ l && l.onerror && l.onerror('PLAYER_ERROR_CONNECTION_FAILED'); }, 30); return; }
+        ok(); }, 60); },
     getDuration: function(){ return url.indexOf('m3u8') > 0 ? dur - (+(/offset=(\\d+)/.exec(url)||[0,0])[1]) * 1000 : dur; },
     play: function(){ rec('play'); run(); }, pause: function(){ rec('pause'); clearInterval(timer); },
     seekTo: function(ms, ok){ rec('seek', ms); t = ms; l && l.oncurrentplaytime(t); ok && ok(); },
@@ -73,7 +81,7 @@ async def main():
                 await route.fulfill(json={'MediaContainer': {'Metadata': [EP('202', 3, 'Low Tide', '1080', 9002, 100)]}}); return
             if path == '/library/metadata/103':
                 await route.fulfill(json={'MediaContainer': {'Metadata': [EP('103', 4, 'High Water')]}}); return
-            if path in ('/library/metadata/401', '/library/metadata/402'):
+            if path in ('/library/metadata/401', '/library/metadata/402', '/library/metadata/403'):
                 m = EP(path.split('/')[-1], 1, 'Subtitled')
                 m['Media'][0]['Part'][0]['Stream'] = [{'streamType': 1, 'codec': 'h264'}, {'id': 12, 'streamType': 2, 'codec': 'eac3', 'languageCode': 'eng', 'displayTitle': 'English', 'selected': True},
                     {'id': 41, 'streamType': 3, 'codec': 'ass', 'languageCode': 'eng', 'displayTitle': 'English (ASS)', 'selected': True}]
@@ -82,6 +90,8 @@ async def main():
             if path == '/library/streams/41':
                 await route.fulfill(status=404, body=''); return
             if path == '/video/:/transcode/universal/start.m3u8':
+                if subsmode['master'] == 'refuse':
+                    await route.fulfill(status=400, body=''); return
                 if subsmode['master'] == 'text':
                     await route.fulfill(body='#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="session/abc/subs.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=8000000,SUBTITLES="subs"\nsession/abc/base/index.m3u8\n', content_type='application/vnd.apple.mpegurl'); return
                 await route.fulfill(body='#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=8000000\nsession/abc/base/index.m3u8\n', content_type='application/vnd.apple.mpegurl'); return
@@ -242,6 +252,25 @@ async def main():
         av = await ev('window.__av'); last = [a for a in av if a[0] == 'open'][-1][1]
         check('...else drawn into the picture by the server', 'subtitles=burn' in last, [last[:160], await ev("P.Player.debug() && P.Player.debug().subHow")])
         await key('Escape', 200); await key('Escape', 900)
+        # your case: resume at 10:00, the server refuses both, the TV reports stale errors and the title's own time
+        subsmode['master'] = 'refuse'
+        await ev("window.__staleErrors = true; window.__failBurn = true; window.__absTime = true; window.__lastOffset = 600000")
+        n0 = len(await ev('window.__av'))
+        await ev("P.Plex.open({key:'403', title:'Subtitled', offset:600000, copies:[]})"); await pg.wait_for_timeout(5000)
+        av = (await ev('window.__av'))[n0:]; opens = [a[1] for a in av if a[0] == 'open']
+        st_ = await ev("(function(){var s=P.Player.debug();return s?{t:s.t,how:s.subHow,top:P.UI.top().name,direct:s.plan.direct}:{top:P.UI.top().name}})()")
+        check('refused twice: keeps playing, no error box', st_.get('top') == 'player' and st_.get('direct') and opens and 'file.mkv' in opens[-1], [st_, [o[-60:] for o in opens]])
+        check('...and says why in Info', "Couldn't show them" in (st_.get('how') or ''), st_.get('how'))
+        check('the clock stays right (no jumping)', 600000 <= st_.get('t', 0) <= 640000, st_.get('t'))
+        await key('Escape', 200); await key('Escape', 900)
+        # a remuxed stream that reports the title's own time: the clock still counts once
+        subsmode['master'] = 'text'
+        await ev("window.__failBurn = false")
+        await ev("P.Plex.open({key:'403', title:'Subtitled', offset:600000, copies:[]})"); await pg.wait_for_timeout(4000)
+        st2 = await ev("(function(){var s=P.Player.debug();return {t:s.t, mode:s.timeMode, how:s.subHow}})()")
+        check('remuxed stream: clock counted once', 600000 <= st2['t'] <= 640000 and st2['mode'] == 'abs', st2)
+        await key('Escape', 200); await key('Escape', 900)
+        await ev("window.__staleErrors = false; window.__absTime = false")
         # sleep screen: a silent loop plays in Samsung's player, and stops on any button
         n0 = len(await ev('window.__av'))
         await ev("""tizen.filesystem = { copyFile: function(a, b, o, ok){ window.__copied = [a, b]; setTimeout(ok, 30); }, isFile: function(){ return false; },

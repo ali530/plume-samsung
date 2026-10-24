@@ -396,26 +396,37 @@
   }
 
   /* ---------- playing ---------- */
+  /* Every stream gets a number. Samsung's player still reports on a stream after Plume has closed it (an error for the
+     interrupted start, a last time update); anything about an older stream is ignored, so it can't upset the new one. */
+  var streamGen = 0;
   function startAV(url, offsetMs) {
-    var A = av();
+    var A = av(), gen = ++streamGen, mine = st;
+    var live = function () { return st && st === mine && gen === streamGen; };
     try { A.stop(); A.close(); } catch (e) {}
+    st.timeMode = st.plan.direct || !st.base ? 'abs' : null;   // a converted stream may count from its start or from the title's
     A.open(url);
     A.setDisplayRect(0, 0, 1920, 1080);
     try { A.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX'); } catch (e) {}
     if (String(st.plan.media.videoResolution).toLowerCase() === '4k' && !st.plan.q) { try { A.setStreamingProperty('SET_MODE_4K', 'TRUE'); } catch (e) {} }
     A.setListener({
-      onbufferingstart: function () { root.classList.add('waiting'); },
-      onbufferingcomplete: function () { root.classList.remove('waiting'); },
-      oncurrentplaytime: function (ms) { if (!st) return; st.t = (st.base || 0) + ms; tick(); },
-      onstreamcompleted: function () { finished(); },
-      onerror: function (e) { failed(e); },
-      onsubtitlechange: function (dur, text) { if (st && st.embedded) setSubText(String(text || '').replace(/<[^>]+>/g, '')); }
+      onbufferingstart: function () { if (live()) root.classList.add('waiting'); },
+      onbufferingcomplete: function () { if (live()) root.classList.remove('waiting'); },
+      oncurrentplaytime: function (ms) {
+        if (!live()) return;
+        // the first update tells which: a time near the start position means the player already counts from the title's start
+        if (!st.timeMode) st.timeMode = ms >= st.base - 20000 ? 'abs' : 'rel';
+        st.t = st.timeMode === 'abs' ? ms : st.base + ms;
+        tick();
+      },
+      onstreamcompleted: function () { if (live()) finished(); },
+      onerror: function (e) { if (live()) failed(e); },
+      onsubtitlechange: function (dur, text) { if (live() && st.embedded) setSubText(String(text || '').replace(/<[^>]+>/g, '')); }
     });
     root.classList.add('waiting');
     st.ready = false;
     A.prepareAsync(function () {
-      if (!st) return;
-      st.dur = A.getDuration() + (st.base || 0) || st.dur;
+      if (!live()) return;
+      st.dur = (st.meta && st.meta.duration) || (A.getDuration() + (st.base || 0)) || st.dur;   // the title's own length, never the stream's
       var go = function () {
         A.play(); st.playing = true; st.ready = true; root.classList.remove('waiting'); report('playing'); show(true); paint();
         if (st.pendingSub) {   // a subtitle that needed the video to be ready first
@@ -424,11 +435,13 @@
         }
       };
       if (st.plan.direct && offsetMs > 1000) A.seekTo(offsetMs, go, go); else go();
-    }, function (e) { failed(e); });
+    }, function (e) { if (live()) failed(e); });
   }
 
   function restart(change) {
-    var at = st.t;
+    var end = (st.meta && st.meta.duration) || st.dur || 0;
+    var at = Math.max(0, end ? Math.min(st.t, end - 5000) : st.t);   // never ask for a position past the end
+    st.t = at;
     report('stopped');
     if (!st.plan.direct) ping('/video/:/transcode/universal/stop?session=' + st.session);
     st.session = 'plume-' + Date.now().toString(36);
@@ -467,6 +480,7 @@
 
   function report(state) {
     if (!st || !st.key) return;
+    if (st.dur && st.t > st.dur + 5000) return;          // never save a position past the end
     var q = '/:/timeline?ratingKey=' + st.key + '&key=' + encodeURIComponent('/library/metadata/' + st.key) + '&state=' + state +
       '&time=' + Math.round(st.t) + '&duration=' + Math.round(st.dur || 0) + '&X-Plex-Session-Identifier=' + st.session;
     ping(q);
@@ -488,7 +502,8 @@
     if (!st) return;
     if (st.plan && st.plan.remuxSubs) { st.plan.remuxSubs = false; fallback(st.plan.sub, 'repackaging refused'); return; }
     if (st.plan && st.plan.forceBurn) {   // the server won't draw them in either: play on without them
-      st.plan.forceBurn = false; st.subHow = "Couldn't show them (the server refused to convert the picture)"; st.plan.sub = null; restart({}); return;
+      st.plan.forceBurn = false; st.plan.sub = null; restart({});
+      st.subHow = "Couldn't show them: the server refused to repackage or convert this title"; return;
     }
     if (st.plan && st.plan.direct && !st.triedConvert) {   // the TV couldn't play the file as it is: let the server help once
       st.triedConvert = true; st.plan.convertAudio = true; restart({});

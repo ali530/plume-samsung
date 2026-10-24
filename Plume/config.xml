@@ -4,7 +4,7 @@
   The package id must stay exactly 10 characters.
 -->
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
-        id="http://plume.local/samsung" version="2.2.0" viewmodes="maximized">
+        id="http://plume.local/samsung" version="2.3.0" viewmodes="maximized">
     <tizen:application id="PlumeTV001.Plume" package="PlumeTV001" required_version="5.5"/>
     <name>Plume</name>
     <description>A calm, ad-free home screen with Plex Continue Watching and today's football.</description>
