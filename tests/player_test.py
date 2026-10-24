@@ -23,7 +23,7 @@ window.__av = [];
     play: function(){ rec('play'); run(); }, pause: function(){ rec('pause'); clearInterval(timer); },
     seekTo: function(ms, ok){ rec('seek', ms); t = ms; l && l.oncurrentplaytime(t); ok && ok(); },
     stop: function(){ clearInterval(timer); }, close: function(){ rec('close'); },
-    getTotalTrackInfo: function(){ return [{type:'AUDIO', index:1},{type:'AUDIO', index:2},{type:'TEXT', index:3, extra_info:'{"track_lang":"ar"}'}]; },
+    getTotalTrackInfo: function(){ var t = [{type:'AUDIO', index:1},{type:'AUDIO', index:2}]; if (!window.__noText) t.push({type:'TEXT', index:3, extra_info:'{"track_lang":"ar"}'}); return t; },
     setSelectTrack: function(k,i){ rec('track', k, i); }, setSilentSubtitle: function(){}
   };
   window.__avjump = function(ms){ t = ms; l && l.oncurrentplaytime(t); };
@@ -48,7 +48,7 @@ async def main():
     APP, ASSETS, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
     os.makedirs(OUT, exist_ok=True)
     threading.Thread(target=g['serve'], daemon=True).start()
-    hits, results, plexapp = [], [], {'moved': 0}
+    hits, results, plexapp, subsmode = [], [], {'moved': 0}, {'master': 'text'}
     check = lambda n, ok, info='': results.append((n, bool(ok), info))
     # two copies of the same episode: 102 (4K, watched last) and 202 (1080p)
     items = [dict(x, guid='plex://' + x['ratingKey']) for x in g['PLEX_ITEMS']]
@@ -73,6 +73,22 @@ async def main():
                 await route.fulfill(json={'MediaContainer': {'Metadata': [EP('202', 3, 'Low Tide', '1080', 9002, 100)]}}); return
             if path == '/library/metadata/103':
                 await route.fulfill(json={'MediaContainer': {'Metadata': [EP('103', 4, 'High Water')]}}); return
+            if path in ('/library/metadata/401', '/library/metadata/402'):
+                m = EP(path.split('/')[-1], 1, 'Subtitled')
+                m['Media'][0]['Part'][0]['Stream'] = [{'streamType': 1, 'codec': 'h264'}, {'id': 12, 'streamType': 2, 'codec': 'eac3', 'languageCode': 'eng', 'displayTitle': 'English', 'selected': True},
+                    {'id': 41, 'streamType': 3, 'codec': 'ass', 'languageCode': 'eng', 'displayTitle': 'English (ASS)', 'selected': True}]
+                m['Media'][0]['videoResolution'] = '1080'
+                await route.fulfill(json={'MediaContainer': {'Metadata': [m]}}); return
+            if path == '/library/streams/41':
+                await route.fulfill(status=404, body=''); return
+            if path == '/video/:/transcode/universal/start.m3u8':
+                if subsmode['master'] == 'text':
+                    await route.fulfill(body='#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="session/abc/subs.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=8000000,SUBTITLES="subs"\nsession/abc/base/index.m3u8\n', content_type='application/vnd.apple.mpegurl'); return
+                await route.fulfill(body='#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=8000000\nsession/abc/base/index.m3u8\n', content_type='application/vnd.apple.mpegurl'); return
+            if path.endswith('/session/abc/subs.m3u8'):
+                await route.fulfill(body='#EXTM3U\n#EXT-X-TARGETDURATION:60\n#EXTINF:60,\nseg0.vtt\n', content_type='application/vnd.apple.mpegurl'); return
+            if path.endswith('/session/abc/seg0.vtt'):
+                await route.fulfill(body='WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000\n\n00:00:01.000 --> 00:59:00.000\nHello from the server\n', content_type='text/vtt'); return
             if path == '/library/metadata/SH/children':
                 await route.fulfill(json={'MediaContainer': {'Metadata': [{'ratingKey': 'S1', 'type': 'season', 'index': 1, 'title': 'Season 1'}, {'ratingKey': 'S2', 'type': 'season', 'index': 2, 'title': 'Season 2'}]}}); return
             if path == '/library/metadata/301':
@@ -205,6 +221,27 @@ async def main():
         await ev("P.Plex.hide(P.Plex.items.filter(x=>x.key=='103' || x.title=='Northbound')[0] || P.Plex.items[0])")
         hidden = await ev("JSON.stringify(P.S.get('plexHidden').slice(-1))")
         check('hide keeps what to compare with', 'viewed' in hidden, hidden)
+        # ASS reader: invisible marker, the file's own column order, two lines at once, a line at the top
+        ass = '\ufeff[Script Info]\nTitle: x\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n' + \
+              'Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,Hello, {\\i1}world{\\i0}\\Nsecond line\n' + \
+              'Dialogue: 0,0:00:02.00,0:00:04.00,Sign,,0,0,0,,{\\an8}A sign\n' + \
+              'Dialogue: 0,0:00:02.00,0:00:04.00,Draw,,0,0,0,,{\\p1}m 0 0 l 10 10{\\p0}\n'
+        parsed = await ev("JSON.stringify(P.Player._parseSubs(%s))" % json.dumps(ass))
+        check('ASS: read despite the hidden marker, two lines, top line, no shapes', '"t":"Hello, world\\nsecond line"' in parsed and '"top":true' in parsed and parsed.count('"a"') == 2, parsed)
+        # embedded ASS the server won't hand over and the TV can't read: remux with text subtitles
+        await ev("window.__noText = true")
+        await ev("P.Plex.open({key:'401', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(3500)
+        av = await ev('window.__av'); last = [a for a in av if a[0] == 'open'][-1][1]
+        check('embedded ASS: the server repackages and sends text', 'session/abc/base/index.m3u8' in last and any('subtitles=auto' in h for h in hits), last[:120])
+        sub = await ev("document.getElementById('plSub').textContent")
+        check('...and Plume draws them', 'Hello from the server' in sub, [sub, await ev("P.Player.debug().subHow")])
+        await key('Escape', 200); await key('Escape', 900)
+        # no text track from the server: drawn into the picture, automatically
+        subsmode['master'] = 'none'
+        await ev("P.Plex.open({key:'402', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(3500)
+        av = await ev('window.__av'); last = [a for a in av if a[0] == 'open'][-1][1]
+        check('...else drawn into the picture by the server', 'subtitles=burn' in last, [last[:160], await ev("P.Player.debug() && P.Player.debug().subHow")])
+        await key('Escape', 200); await key('Escape', 900)
         # sleep screen: a silent loop plays in Samsung's player, and stops on any button
         n0 = len(await ev('window.__av'))
         await ev("""tizen.filesystem = { copyFile: function(a, b, o, ok){ window.__copied = [a, b]; setTimeout(ok, 30); }, isFile: function(){ return false; },

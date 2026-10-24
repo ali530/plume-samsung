@@ -59,7 +59,9 @@
     var q = pl.q;
     var p = ['path=' + encodeURIComponent('/library/metadata/' + key), 'mediaIndex=0', 'partIndex=0', 'protocol=hls', 'fastSeek=1',
       'directPlay=0', 'directStream=' + (q ? 0 : 1), 'directStreamAudio=' + (pl.convertAudio ? 0 : 1),
-      'subtitles=' + (pl.burn ? 'burn' : 'none'), 'subtitleSize=100', 'audioBoost=100', 'location=wan',
+      'subtitles=' + (pl.burn ? 'burn' : pl.remuxSubs ? 'auto' : 'none'), 'subtitleSize=100',
+      // asking for the subtitles as text alongside a copied picture (WebVTT in the stream)
+      pl.remuxSubs ? 'X-Plex-Client-Profile-Extra=' + encodeURIComponent('add-transcode-target-subtitle-codec(type=videoProfile&context=streaming&protocol=hls&subtitleCodec=webvtt)') : '', 'audioBoost=100', 'location=wan',
       'maxVideoBitrate=' + (q ? q.kbps : 200000), q ? 'videoResolution=' + q.res : '', 'offset=' + Math.floor(offsetMs / 1000),
       'session=' + st.session, 'X-Plex-Session-Identifier=' + st.session, 'X-Plex-Client-Identifier=' + encodeURIComponent(P.S.get('clientId')),
       'X-Plex-Product=Plume%20for%20Samsung', 'X-Plex-Platform=Tizen', 'X-Plex-Token=' + tok()].filter(Boolean);
@@ -68,20 +70,37 @@
 
   /* ---------- subtitles drawn by Plume (text ones): fetched once, shown line by line ---------- */
   function parseTime(t) { var m = t.replace(',', '.').split(':'); return ((+m[0]) * 3600 + (+m[1]) * 60 + parseFloat(m[2])) * 1000; }
+  /* ASS / SSA: the file's own Format line says where the start, end and text are. Styling codes and drawn shapes are
+     dropped; lines the file places at the top ({\an8} and friends) stay at the top. */
+  function parseAss(txt) {
+    var out = [], fmt = null, DEF = ['layer', 'start', 'end', 'style', 'name', 'marginl', 'marginr', 'marginv', 'effect', 'text'];
+    txt.split(/\r?\n/).forEach(function (l) {
+      var f = l.match(/^\s*Format:\s*(.*)$/i);
+      if (f && /start/i.test(f[1]) && /text/i.test(f[1])) { fmt = f[1].split(',').map(function (x) { return x.trim().toLowerCase(); }); return; }
+      var d = l.match(/^\s*Dialogue:\s*(.*)$/i); if (!d) return;
+      var cols = fmt || DEF, parts = d[1].split(','), ti = cols.indexOf('text'); if (ti < 0) ti = cols.length - 1;
+      var col = function (k) { var i = cols.indexOf(k); return i >= 0 ? (parts[i] || '').trim() : ''; };
+      var text = parts.slice(ti).join(',');
+      if (/\{[^}]*\\p[1-9]/.test(text)) return;                      // a drawn shape, not words
+      var top = /\\an[789]/.test(text) || /\\a(5|6|7|9|10|11)(?!\d)/.test(text);
+      text = text.replace(/\{[^}]*\}/g, '').replace(/\\N/gi, '\n').replace(/\\h/g, ' ').trim();
+      if (!text || !col('start')) return;
+      out.push({ a: parseTime(col('start')), b: parseTime(col('end')), t: text, top: top });
+    });
+    return out;
+  }
   function parseSubs(txt) {
     var out = [];
-    if (/^\[Script Info\]/m.test(txt)) {      // ASS / SSA
-      txt.split(/\r?\n/).forEach(function (l) {
-        var m = l.match(/^Dialogue:\s*[^,]*,([^,]+),([^,]+),(?:[^,]*,){6}(.*)$/);
-        if (m) out.push({ a: parseTime(m[1].trim() + '0'), b: parseTime(m[2].trim() + '0'), t: m[3].replace(/\{[^}]*\}/g, '').replace(/\\N/gi, '\n') });
-      });
-    } else {                                   // SRT / WebVTT
+    txt = String(txt || '').replace(/^﻿/, '');                  // an invisible marker some files start with
+    if (/^\s*\[Script Info\]/i.test(txt) || /^\s*Dialogue:/im.test(txt)) out = parseAss(txt);
+    else {                                   // SRT / WebVTT
       txt.replace(/\r/g, '').split(/\n\n+/).forEach(function (blk) {
         var m = blk.match(/(\d+:\d+:\d+[.,]\d+)\s*-->\s*(\d+:\d+:\d+[.,]\d+)[^\n]*\n([\s\S]*)/) ||
                 blk.match(/(\d+:\d+[.,]\d+)\s*-->\s*(\d+:\d+[.,]\d+)[^\n]*\n([\s\S]*)/);
         if (!m) return;
         var a = m[1].split(':').length === 2 ? '0:' + m[1] : m[1], b = m[2].split(':').length === 2 ? '0:' + m[2] : m[2];
-        out.push({ a: parseTime(a), b: parseTime(b), t: m[3].replace(/<[^>]+>/g, '').trim() });
+        var t = m[3].replace(/<[^>]+>/g, '').trim();
+        if (t) out.push({ a: parseTime(a), b: parseTime(b), t: t, top: /line:\s*[0-9]{1,2}%/.test(blk.split('\n')[0] || '') && !/line:\s*[5-9][0-9]%/.test(blk) });
       });
     }
     return out.sort(function (x, y) { return x.a - y.a; });
@@ -99,6 +118,7 @@
     st.subHow = sub ? 'Loading…' : '';
     var want = st.subGen = (st.subGen || 0) + 1;
     if (!sub || IMAGE_SUBS.test(sub.codec || '')) { st.subHow = sub ? 'Drawn into the picture by the server' : ''; return; }
+    if (st.plan.remuxSubs) { st.subHow = 'Waiting for the server to send them as text'; return; }
     var s = srv(), path = sub.key || '/library/streams/' + sub.id;
     fetch(s.uri + path + (path.indexOf('?') < 0 ? '?' : '&') + 'X-Plex-Token=' + tok(), { headers: P.Plex.hdrs(s.token) })
       .then(function (r) { if (!r.ok) throw new Error('server said ' + r.status); return r.text(); })
@@ -115,8 +135,75 @@
           if (!st.ready) { st.pendingSub = sub; st.subHow = 'Waiting for the video'; return; }
           if (useEmbeddedSubs(sub)) { st.subHow = 'Shown by the TV'; return; }
         }
-        st.subHow = "Couldn't load (" + (e && e.message || 'error') + ')';
+        fallback(sub, e && e.message || 'error');
       });
+  }
+  /* The subtitle is inside the video, the server won't hand it over as a file and the TV can't read it (ASS, for example).
+     1) ask the server to repackage the video (picture and sound copied, no quality loss) and send the subtitles as text;
+     2) if that's refused, the server draws them into the picture (automatic, slightly lower picture quality). */
+  function fallback(sub, why) {
+    if (!st || !sub || IMAGE_SUBS.test(sub.codec || '')) return;
+    st.subLog = (st.subLog || []).concat(why);
+    var pl = st.plan;
+    if (!st.triedRemux) { st.triedRemux = true; pl.remuxSubs = true; pl.forceBurn = false; st.subHow = 'Asking the server to send them as text'; restart({}); return; }
+    if (!st.triedBurn) { st.triedBurn = true; pl.remuxSubs = false; pl.forceBurn = true; st.subHow = 'Drawn into the picture by the server'; restart({}); return; }
+    st.subHow = "Couldn't show them (" + st.subLog.join(' · ') + ')';
+  }
+
+  /* ---------- the remuxed stream: picture from its own playlist, subtitles from theirs (WebVTT pieces) ---------- */
+  function startStream(at) {
+    var pl = st.plan, url = streamUrl(pl, st.key, at);
+    clearInterval(st.vttT); st.vttSeen = {};
+    if (!pl.remuxSubs) { startAV(url, at); return; }
+    var mine = st, session = st.session, s = srv();
+    root.classList.add('waiting');
+    fetch(url, { headers: P.Plex.hdrs(s.token) }).then(function (r) { if (!r.ok) throw new Error('server said ' + r.status); return r.text(); }).then(function (master) {
+      if (st !== mine || st.session !== session) return;
+      var dir = url.split('?')[0].replace(/[^\/]*$/, '');
+      var abs = function (u) {
+        u = /^https?:/.test(u) ? u : u.charAt(0) === '/' ? s.uri + u : dir + u;
+        return u.indexOf('X-Plex-Token=') < 0 ? u + (u.indexOf('?') < 0 ? '?' : '&') + 'X-Plex-Token=' + tok() : u;
+      };
+      var sm = master.match(/#EXT-X-MEDIA:[^\n]*TYPE=SUBTITLES[^\n]*URI="([^"]+)"/);
+      if (!sm) throw new Error('the server sent no text track');
+      var lines = master.split(/\r?\n/), variant = null;
+      for (var i = 0; i < lines.length; i++) if (/^#EXT-X-STREAM-INF/.test(lines[i])) { variant = lines[i + 1]; break; }
+      startAV(variant ? abs(variant) : url, at);
+      st.subHow = 'Sent as text by the server';
+      pollVtt(abs(sm[1]), session);
+    }).catch(function (e) { if (st === mine) { pl.remuxSubs = false; fallback(pl.sub, e.message); } });
+  }
+  function pollVtt(listUrl, session) {
+    var s = srv(), busy = false, mapShift = null;
+    var once = function () {
+      if (!st || st.session !== session || busy) return;
+      busy = true;
+      fetch(listUrl, { headers: P.Plex.hdrs(s.token) }).then(function (r) { return r.text(); }).then(function (txt) {
+        var dir = listUrl.split('?')[0].replace(/[^\/]*$/, '');
+        var segs = txt.split(/\r?\n/).filter(function (l) { return l && l.charAt(0) !== '#'; }).filter(function (u) { return !st.vttSeen[u]; }).slice(0, 12);
+        return segs.reduce(function (p, u) {
+          return p.then(function () {
+            st.vttSeen[u] = true;
+            var full = /^https?:/.test(u) ? u : u.charAt(0) === '/' ? s.uri + u : dir + u;
+            if (full.indexOf('X-Plex-Token=') < 0) full += (full.indexOf('?') < 0 ? '?' : '&') + 'X-Plex-Token=' + tok();
+            return fetch(full).then(function (r) { return r.text(); }).then(function (vtt) {
+              if (!st || st.session !== session) return;
+              var m = vtt.match(/X-TIMESTAMP-MAP=[^\n]*MPEGTS:(\d+)[^\n]*LOCAL:([\d:.]+)/) || vtt.match(/X-TIMESTAMP-MAP=[^\n]*LOCAL:([\d:.]+)[^\n]*MPEGTS:(\d+)/);
+              var shift = 0;
+              if (m) { var mpeg = +(/MPEGTS:(\d+)/.exec(m[0])[1]), local = /LOCAL:([\d:.]+)/.exec(m[0])[1]; shift = mpeg / 90 - parseTime(local.split(':').length === 2 ? '0:' + local : local); }
+              var cues = parseSubs(vtt.replace(/^WEBVTT[^\n]*\n(?:[^\n]+\n)*/, ''));
+              if (!cues.length) return;
+              // the pieces count either from the start of the title or from where this stream began
+              if (mapShift === null) mapShift = (cues[0].a + shift < (st.base || 0) - 30000) ? (st.base || 0) + shift : shift;
+              cues.forEach(function (c) { c.a += mapShift; c.b += mapShift; });
+              st.cues = (st.cues || []).concat(cues).sort(function (x, y) { return x.a - y.a; });
+            });
+          });
+        }, Promise.resolve());
+      }).catch(function () {}).then(function () { busy = false; });
+    };
+    once();
+    st.vttT = setInterval(once, 6000);
   }
   function useEmbeddedSubs(sub) {   // the TV reads the subtitle track inside the file: match it by its place among the file's text tracks
     try {
@@ -133,18 +220,22 @@
       return true;
     } catch (e) { P.log('subs', e.message); return false; }
   }
-  var subEl = null, lastSub = null;
-  function setSubText(t) {
-    if (t === lastSub || !subEl) return;      // only touch the screen when the line changes
-    lastSub = t; subEl.textContent = t; subEl.style.visibility = t ? 'visible' : 'hidden';
+  var subEl = null, subTopEl = null, lastSub = null, lastTop = null;
+  function setSubText(t, top) {
+    top = top || '';
+    if (subEl && t !== lastSub) { lastSub = t; subEl.textContent = t; subEl.style.visibility = t ? 'visible' : 'hidden'; }   // only when it changes
+    if (subTopEl && top !== lastTop) { lastTop = top; subTopEl.textContent = top; subTopEl.style.visibility = top ? 'visible' : 'hidden'; }
   }
+  /* every line due at this moment (ASS often has two at once, such as a sign and the dialogue) */
   function subsAt(ms) {
-    var c = st.cues; if (!c) return;
-    var i = st.cueAt;
-    if (i >= c.length || c[i].a > ms) i = 0;
-    while (i < c.length && c[i].b < ms) i++;
-    st.cueAt = i;
-    setSubText(i < c.length && c[i].a <= ms ? c[i].t : '');
+    var c = st.cues; if (!c || !c.length) return;
+    var lo = 0, hi = c.length - 1, last = -1;
+    while (lo <= hi) { var mid = (lo + hi) >> 1; if (c[mid].a <= ms) { last = mid; lo = mid + 1; } else hi = mid - 1; }
+    var bottom = [], top = [];
+    for (var i = last, n = 0; i >= 0 && n < 40; i--, n++) {
+      if (c[i].b >= ms) (c[i].top ? top : bottom).unshift(c[i].t);
+    }
+    setSubText(bottom.join('\n'), top.join('\n'));
   }
 
   /* ---------- the screen ---------- */
@@ -159,7 +250,7 @@
   function build() {
     root = P.el('div', 'pl'); root.id = 'player';
     root.innerHTML = '<object id="avp" type="application/avplayer"></object>' +
-      '<div class="pl-sub" id="plSub"></div>' +
+      '<div class="pl-sub" id="plSub"></div><div class="pl-sub top" id="plSubTop"></div>' +
       '<div class="pl-wait" id="plWait"><i></i></div>' +
       '<div class="pl-ui" id="plUi"><div class="pl-shade"></div>' +
       '<div class="pl-top"><div><div class="pl-title" id="plTitle"></div><div class="pl-ep" id="plEp"></div></div><div class="pl-clock" id="plClock"></div></div>' +
@@ -171,7 +262,7 @@
       '<button class="pl-skip" id="plSkip">Skip intro</button>' +
       '<div class="pl-panel" id="plPanel"></div><div class="pl-info" id="plInfo"></div><div class="pl-next" id="plNext"></div>';
     document.body.appendChild(root);
-    subEl = P.$('#plSub'); lastSub = null;
+    subEl = P.$('#plSub'); subTopEl = P.$('#plSubTop'); lastSub = null; lastTop = null;
   }
 
   function show(on) {
@@ -257,7 +348,9 @@
       put('/library/parts/' + pl.part.id + '?subtitleStreamID=' + r.v + '&allParts=1');
       var sub = pl.subs.filter(function (x) { return x.id === r.v; })[0] || null;
       var needBurn = !!(sub && IMAGE_SUBS.test(sub.codec || ''));
-      if (needBurn !== pl.burn) { restart({ sub: sub }); return; }
+      var special = pl.remuxSubs || pl.forceBurn;
+      pl.remuxSubs = false; pl.forceBurn = false; st.triedRemux = false; st.triedBurn = false; st.subLog = [];
+      if (needBurn !== pl.burn || special) { restart({ sub: sub }); return; }
       pl.sub = sub;
       loadSubs(needBurn ? null : sub);
     } else if (r.k === 'aud') {
@@ -284,7 +377,7 @@
     var hdr = (pl.part.Stream || []).filter(function (x) { return x.streamType === 1; })[0] || {};
     var dr = hdr.DOVIPresent ? 'Dolby Vision' : /hdr|pq|smpte2084|hlg/i.test((hdr.colorTrc || '') + (hdr.displayTitle || '')) ? 'HDR10' : 'SDR';
     var qq = qOf(st.quality);
-    var how = pl.direct ? 'Directly, no conversion' : pl.q ? 'Converted to ' + (qq ? qq.label : '') : pl.burn ? 'Picture converted to show subtitles' : 'Audio converted, picture original';
+    var how = pl.direct ? 'Directly, no conversion' : pl.remuxSubs ? 'Repackaged: picture and sound copied, subtitles sent as text' : pl.q ? 'Converted to ' + (qq ? qq.label : '') : pl.burn ? 'Picture converted to show subtitles' : 'Audio converted, picture original';
     var sl = pl.sub ? labels(pl.subs, true)[pl.subs.indexOf(pl.sub)] : 'Off';
     var rows = [['Video', [res, dr, (m.videoCodec || '').toUpperCase()].filter(Boolean).join(' · ')],
       ['Audio', pl.audio ? labels(pl.audios, false)[pl.audios.indexOf(pl.audio)] : '—'], ['Subtitles', sl + (st.subHow ? ' — ' + st.subHow : '')],
@@ -327,7 +420,7 @@
         A.play(); st.playing = true; st.ready = true; root.classList.remove('waiting'); report('playing'); show(true); paint();
         if (st.pendingSub) {   // a subtitle that needed the video to be ready first
           var ps = st.pendingSub; st.pendingSub = null;
-          if (st.plan.sub === ps) st.subHow = useEmbeddedSubs(ps) ? 'Shown by the TV' : "Couldn't load (the TV has no such track)";
+          if (st.plan.sub === ps) { if (useEmbeddedSubs(ps)) st.subHow = 'Shown by the TV'; else fallback(ps, 'the TV has no such track'); }
         }
       };
       if (st.plan.direct && offsetMs > 1000) A.seekTo(offsetMs, go, go); else go();
@@ -342,13 +435,13 @@
     if (change.audio) st.plan.audio = change.audio;
     if ('sub' in change) st.plan.sub = change.sub;
     var pl = st.plan;
-    pl.burn = !!(pl.sub && IMAGE_SUBS.test(pl.sub.codec || ''));
+    pl.burn = !!(pl.sub && (IMAGE_SUBS.test(pl.sub.codec || '') || pl.forceBurn));
     pl.convertAudio = !!(pl.audio && BAD_AUDIO.test(pl.audio.codec || ''));
-    var qq = qOf(st.quality); pl.q = qq && qq.q; pl.direct = !pl.burn && !pl.convertAudio && !pl.q;
+    var qq = qOf(st.quality); pl.q = qq && qq.q; pl.direct = !pl.burn && !pl.convertAudio && !pl.q && !pl.remuxSubs;
     st.base = pl.direct ? 0 : at;            // a converted stream starts at the position asked for
     st.panel = false; P.$('#plPanel').classList.remove('on');
     loadSubs(pl.burn ? null : pl.sub);
-    startAV(streamUrl(pl, st.key, at), at);
+    startStream(at);
   }
 
   function tick() {
@@ -393,6 +486,10 @@
   function failed(e) {
     P.log('player error', e);
     if (!st) return;
+    if (st.plan && st.plan.remuxSubs) { st.plan.remuxSubs = false; fallback(st.plan.sub, 'repackaging refused'); return; }
+    if (st.plan && st.plan.forceBurn) {   // the server won't draw them in either: play on without them
+      st.plan.forceBurn = false; st.subHow = "Couldn't show them (the server refused to convert the picture)"; st.plan.sub = null; restart({}); return;
+    }
     if (st.plan && st.plan.direct && !st.triedConvert) {   // the TV couldn't play the file as it is: let the server help once
       st.triedConvert = true; st.plan.convertAudio = true; restart({});
       return;
@@ -466,7 +563,7 @@
       st.base = st.plan.direct ? 0 : st.t;
       loadSubs(st.plan.burn ? null : st.plan.sub);
       loadNext(meta);
-      startAV(streamUrl(st.plan, st.key, st.t), st.t);
+      startStream(st.t);
       paint();
     }).catch(function (e) { if (st === mine) failed(e); });
   };
@@ -477,7 +574,7 @@
     if (st.key) P.Plex.snapshot(st.card, st.key);
     if (st.plan && !st.plan.direct) ping('/video/:/transcode/universal/stop?session=' + st.session);
     try { av().stop(); av().close(); } catch (e) {}
-    clearInterval(tickT); clearInterval(saveT); clearInterval(otherT); clearTimeout(hideT); clearTimeout(jumpT);
+    clearInterval(tickT); clearInterval(saveT); clearInterval(otherT); clearTimeout(hideT); clearTimeout(jumpT); clearInterval(st.vttT);
     st = null; V.open_ = false;
     if (root) { root.remove(); root = null; } subEl = null;
     document.body.classList.remove('playing');
@@ -576,4 +673,5 @@
   function jumpTo(ms) { seekNow(ms); }
   V.layer = layer;
   V.debug = function () { return st; };
+  V._parseSubs = parseSubs;   // for the tests
 })();

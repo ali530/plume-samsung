@@ -156,6 +156,8 @@
   C.render = function () {
     if (!C.open_) return;
     var F = P.Football, ms = list();
+    // live updates can reorder the list: stay on the same match, not the same position
+    if (C.focusId) { var j = ms.findIndex(function (x) { return x.id === C.focusId; }); if (j >= 0) C.at = j; }
     if (C.at >= ms.length) C.at = Math.max(0, ms.length - 1);
     var focusM = ms[C.at];
     var bar = '<div class="c-head"><button class="cbtn" data-b="0">' + P.icon('back') + 'Back</button><h1>Matches</h1><span class="grow"></span>' +
@@ -178,7 +180,7 @@
         }).join('') + '</div>';
       }).join('');
     }
-    var html = bar + '<div class="c-body"><div class="c-list" id="cList">' + body + '</div><aside class="c-side" id="cSide"></aside></div>';
+    var html = bar + '<div class="c-body"><div class="c-list" id="cList"><div class="c-track" id="cTrack">' + body + '</div></div><aside class="c-side" id="cSide"></aside></div>';
     if (root()._html !== html) { root()._html = html; root().innerHTML = html; if (C.full) renderFull(); }  // the list itself only when it changed
     C.side(); paint();
     if (C.full) renderFull();
@@ -189,7 +191,13 @@
     var m = list()[C.at], html = detail(m) + table(m);
     if (box._html !== html) { box._html = html; box.innerHTML = html; }
   };
-  function moveTo(i) { C.at = i; paint(); C.side(); }
+  /* each press moves the focus at once; the details card and table follow when you pause, so presses never queue up */
+  var sideT = null;
+  function moveTo(i) {
+    C.at = i; var m = list()[i]; C.focusId = m ? m.id : null;
+    paint();
+    clearTimeout(sideT); sideT = setTimeout(C.side, 120);
+  }
 
   function paint() {
     var r = root();
@@ -198,10 +206,11 @@
     if (!el && C.zone === 'table') { C.zone = 'list'; el = P.$('[data-m="' + C.at + '"]', r); }
     if (!el && C.zone === 'list') { C.zone = 'bar'; el = P.$('[data-b="' + C.bar + '"]', r); }
     if (el) el.classList.add('focus');
-    if (el && C.zone === 'list') {
-      var box = P.$('#cList'), top = el.offsetTop - box.offsetTop, h = el.offsetHeight;
-      if (top - box.scrollTop > box.clientHeight - h - 40) box.scrollTop = top - box.clientHeight + h + 40;
-      if (top - box.scrollTop < 40) box.scrollTop = Math.max(0, top - 60);
+    if (el && C.zone === 'list') {   // the list slides on the graphics chip instead of jumping
+      var box = P.$('#cList'), track = P.$('#cTrack'), y = track._y || 0, top = el.offsetTop, h = el.offsetHeight, bh = box.clientHeight;
+      if (top + h - y > bh - 40) y = top + h - bh + 40;
+      if (top - y < 40) y = Math.max(0, top - 60);
+      if (y !== track._y) { track._y = y; track.style.transform = 'translate3d(0,' + (-y) + 'px,0)'; }
     }
   }
 
@@ -228,7 +237,7 @@
         if (k === 'down' && ms.length) { C.zone = 'list'; moveTo(0); return; }
         if (k === 'ok') {
           if (C.bar === 0) { C.close(); return; }
-          C.day = DAYS[C.bar - 1][2]; C.at = 0; C.render(); return;
+          C.day = DAYS[C.bar - 1][2]; C.at = 0; C.focusId = null; C.render(); return;
         }
         paint(); return;
       }
@@ -242,13 +251,13 @@
   };
 
   C.open = function (matchId) {
-    C.open_ = true; C.day = 0; C.at = 0; C.zone = 'list'; C.bar = 2;
+    C.open_ = true; C.day = 0; C.at = 0; C.zone = 'list'; C.bar = 2; C.focusId = null;
     if (matchId) {
       var m = P.Football.find(matchId);
       if (m) {
         C.day = Math.round((P.dayStart(m.date) - P.dayStart(new Date())) / 86400000);
         if (C.day < -1 || C.day > 1) C.day = 0;
-        var i = list().indexOf(m); if (i >= 0) C.at = i;
+        var i = list().indexOf(m); if (i >= 0) { C.at = i; C.focusId = m.id; }
       }
     }
     root().hidden = false;
