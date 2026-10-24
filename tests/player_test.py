@@ -260,7 +260,7 @@ async def main():
         av = (await ev('window.__av'))[n0:]; opens = [a[1] for a in av if a[0] == 'open']
         st_ = await ev("(function(){var s=P.Player.debug();return s?{t:s.t,how:s.subHow,top:P.UI.top().name,direct:s.plan.direct}:{top:P.UI.top().name}})()")
         check('refused twice: keeps playing, no error box', st_.get('top') == 'player' and st_.get('direct') and opens and 'file.mkv' in opens[-1], [st_, [o[-60:] for o in opens]])
-        check('...and says why in Info', "Couldn't show them" in (st_.get('how') or ''), st_.get('how'))
+        check('...and says why in Info, step by step', "Couldn't show them" in (st_.get('how') or '') and 'repackaged stream: server said 400' in (st_.get('how') or '') and 'converted picture' in (st_.get('how') or ''), st_.get('how'))
         check('the clock stays right (no jumping)', 600000 <= st_.get('t', 0) <= 640000, st_.get('t'))
         await key('Escape', 200); await key('Escape', 900)
         # a remuxed stream that reports the title's own time: the clock still counts once

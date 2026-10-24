@@ -43,7 +43,10 @@ def feed():
     return {
         'ksa.1': [ev(1, 'HIL', 'NAS', at(0, 21, 0), venue='Kingdom Arena'),
                   ev(2, 'SHA', 'ETT', at(-1, 19, 0), 'post', '1', '1', name='STATUS_FULL_TIME', goals=[('SHA', 'Carrasco', "34'"), ('ETT', 'Dembele', "77'")]),
-                  ev(3, 'TAA', 'HIL', at(1, 19, 0), venue='King Abdullah Sport City Stadium')],
+                  ev(3, 'TAA', 'HIL', at(1, 19, 0), venue='King Abdullah Sport City Stadium'),
+                  # a busy day: enough matches that the list has to slide
+                  ev(4, 'ITT', 'TAA', at(0, 17, 0)), ev(5, 'AHL', 'ETT', at(0, 17, 30)), ev(6, 'QAD', 'SHA', at(0, 18, 0)),
+                  ev(7, 'NAS', 'ETT', at(0, 18, 30)), ev(8, 'SHA', 'AHL', at(0, 19, 0))],
         'ksa.kings.cup': [ev(10, 'AHL', 'QAD', at(0, 0, 30) if NOW.hour >= 1 else at(0, 0, 0), 'post', '2', '1', name='STATUS_FULL_TIME',
                              goals=[('AHL', 'Toney', "18'"), ('QAD', 'Aubameyang', "52'"), ('AHL', 'Toney', "66'")], venue='King Abdullah Sports City')],
         'afc.champions': [ev(20, 'ITT', 'SAD', at(0, max(0, NOW.hour - 1), 0), 'in', '1', '0', clock="63'", name='STATUS_SECOND_HALF',
@@ -265,17 +268,36 @@ async def main():
         check('table follows the match: Premier League', side.get('Liverpool') == 'Premier League', side)
         check('cup without table shows its round', "King's Cup" in side.get('Al Ahli', ''), side)
         # quick presses: none dropped, the list slides, focus stays on the match through a live refresh
-        await ev_("P.Centre.zone='list';P.Centre.at=0;P.Centre.focusId=P.Football.day(P.Centre.day)[0].id;P.Centre.render()"); await pg.wait_for_timeout(200)
-        n = await ev_("P.Football.day(P.Centre.day).length")
+        await ev_("P.Centre.zone='list';P.Centre.at=0;P.Centre.focusId=P.Centre.list()[0].id;P.Centre.render()"); await pg.wait_for_timeout(200)
+        n = await ev_("P.Centre.list().length")
         for _ in range(5): await pg.keyboard.press('ArrowDown'); await pg.wait_for_timeout(40)
         await pg.wait_for_timeout(400)
         check('five quick presses move five matches', await ev_("P.Centre.at") == min(5, n - 1), [await ev_("P.Centre.at"), n])
         fid = await ev_("P.Centre.focusId")
         await ev_("P.bus.emit('football')"); await pg.wait_for_timeout(200)
-        check('focus stays on the same match after a refresh', await ev_("P.Football.day(P.Centre.day)[P.Centre.at].id") == fid)
+        check('focus stays on the same match after a refresh', await ev_("P.Centre.list()[P.Centre.at].id") == fid)
         check('the list slides instead of jumping', 'translate3d' in (await ev_("document.getElementById('cTrack').style.transform") or '') or n <= 6, await ev_("document.getElementById('cTrack').style.transform"))
+        # Down always goes to the next row on screen (the list is grouped by competition)
+        await ev_("P.Centre.zone='list';P.Centre.at=0;P.Centre.focusId=null;P.Centre.render()"); await pg.wait_for_timeout(200)
+        order_ok, seen = True, []
+        rows = await ev_("document.querySelectorAll('#cList .mline').length")
+        for i in range(rows - 1):
+            await key('ArrowDown'); await pg.wait_for_timeout(120)
+            pos = await ev_("[...document.querySelectorAll('#cList .mline')].findIndex(e=>e.classList.contains('focus'))")
+            seen.append(pos)
+            if pos != i + 1: order_ok = False
+        check('Down goes to the next row on screen, every time', order_ok, seen)
+        # a live update while you're down the list: the list must not move
+        await ev_("P.Centre.zone='list';var ms=P.Centre.list();P.Centre.at=ms.length-1;P.Centre.focusId=ms[ms.length-1].id;P.Centre.render()"); await pg.wait_for_timeout(500)
+        y0 = await ev_("document.getElementById('cTrack').style.transform")
+        await ev_("(function(){var m=P.Centre.list().filter(x=>x.state=='in')[0]; m.clock=\"64'\"; m.detail=\"64'\"; P.bus.emit('football');})()")
+        y1 = await ev_("document.getElementById('cTrack').style.transform")
+        await pg.wait_for_timeout(60)
+        y2 = await ev_("(function(){var t=document.getElementById('cTrack');return getComputedStyle(t).transform})()")
+        y3 = await ev_("(function(){var t=document.getElementById('cTrack');return t.style.transform})()")
+        check('live update: the list stays where it is', y1 == y0 and y3 == y0 and 'matrix' in y2 or y0 in ('', 'none'), [y0, y1, y2, y3])
         # the table: Right focuses it, OK opens the whole table and the coming matches
-        await ev_("(function(){var ms=P.Football.day(P.Centre.day);var i=ms.findIndex(m=>m.comp=='spl');P.Centre.zone='list';P.Centre.at=i<0?0:i;P.Centre.focusId=ms[P.Centre.at].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
+        await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.comp=='spl');P.Centre.zone='list';P.Centre.at=i<0?0:i;P.Centre.focusId=ms[P.Centre.at].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
         await key('ArrowRight'); await pg.wait_for_timeout(200)
         check('Right focuses the table', await ev_("P.Centre.zone == 'table' && !!document.querySelector('#cSide .c-table.focus')"))
         await key('Enter'); await pg.wait_for_timeout(1500)

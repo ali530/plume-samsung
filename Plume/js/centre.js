@@ -21,7 +21,11 @@
     return P.Football.hasReminder(m) ? 'Remove reminder' : 'Remind me';
   };
 
-  function list() { return P.Football.day(C.day); }
+  /* the matches in the order they're shown: grouped by competition (moving Down follows the screen, not kick-off times) */
+  function list() {
+    var F = P.Football;
+    return [].concat.apply([], F.byComp(F.day(C.day)).map(function (g) { return g.list; }));
+  }
 
   function detail(m) {
     var F = P.Football;
@@ -273,6 +277,7 @@
     P.UI.pop(layer);
   };
   C.isOpen = function () { return C.open_; };
+  C.list = function () { return list(); };
   P.bus.on('football', function () { if (C.open_) C.render(); });
   P.bus.on('football-side', function () { if (C.open_) C.render(); });
 

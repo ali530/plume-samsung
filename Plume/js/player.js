@@ -143,11 +143,13 @@
      2) if that's refused, the server draws them into the picture (automatic, slightly lower picture quality). */
   function fallback(sub, why) {
     if (!st || !sub || IMAGE_SUBS.test(sub.codec || '')) return;
-    st.subLog = (st.subLog || []).concat(why);
+    // what each step got back, for Info: the subtitle file, the repackaged stream, the converted picture
+    var stepName = st.triedBurn ? 'converted picture' : st.triedRemux ? 'repackaged stream' : 'subtitle file';
+    st.subLog = (st.subLog || []).concat(stepName + ': ' + why);
     var pl = st.plan;
     if (!st.triedRemux) { st.triedRemux = true; pl.remuxSubs = true; pl.forceBurn = false; st.subHow = 'Asking the server to send them as text'; restart({}); return; }
     if (!st.triedBurn) { st.triedBurn = true; pl.remuxSubs = false; pl.forceBurn = true; st.subHow = 'Drawn into the picture by the server'; restart({}); return; }
-    st.subHow = "Couldn't show them (" + st.subLog.join(' · ') + ')';
+    st.subHow = "Couldn't show them — " + st.subLog.join(' · ');
   }
 
   /* ---------- the remuxed stream: picture from its own playlist, subtitles from theirs (WebVTT pieces) ---------- */
@@ -500,10 +502,12 @@
   function failed(e) {
     P.log('player error', e);
     if (!st) return;
-    if (st.plan && st.plan.remuxSubs) { st.plan.remuxSubs = false; fallback(st.plan.sub, 'repackaging refused'); return; }
+    var code = e && (e.name || e.message) || String(e || 'error');
+    if (st.plan && st.plan.remuxSubs) { st.plan.remuxSubs = false; fallback(st.plan.sub, 'the TV couldn\'t play it (' + code + ')'); return; }
     if (st.plan && st.plan.forceBurn) {   // the server won't draw them in either: play on without them
+      st.subLog = (st.subLog || []).concat('converted picture: the TV couldn\'t play it (' + code + ')');
       st.plan.forceBurn = false; st.plan.sub = null; restart({});
-      st.subHow = "Couldn't show them: the server refused to repackage or convert this title"; return;
+      st.subHow = "Couldn't show them — " + st.subLog.join(' · '); return;
     }
     if (st.plan && st.plan.direct && !st.triedConvert) {   // the TV couldn't play the file as it is: let the server help once
       st.triedConvert = true; st.plan.convertAudio = true; restart({});

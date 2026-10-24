@@ -395,11 +395,11 @@ body.playing #wall, body.playing #home, body.playing .overlay, body.playing .pan
 .pp-r { display: flex; justify-content: space-between; align-items: center; padding: 13px 27px; border-radius: 17px; font-size: 28px; }
 .pp-r.focus { background: #fff; color: #111; }
 .pp-note { font-size: 21px; opacity: .55; margin-top: 24px; line-height: 1.5; }
-.pl-info { position: absolute; left: 77px; top: 211px; width: 768px; padding: 38px 46px; border-radius: 27px; background: rgba(10,10,10,.86); font-size: 28px; line-height: 1.9; display: none; }
+.pl-info { position: absolute; left: 77px; top: 211px; width: 1000px; padding: 38px 46px; border-radius: 27px; background: rgba(10,10,10,.86); font-size: 28px; line-height: 1.9; display: none; }
 .pl-info.on { display: block; }
 .pl-info div { display: flex; justify-content: space-between; gap: 30px; }
 .pl-info span { opacity: .6; }
-.pl-info b { font-weight: 400; text-align: right; }
+.pl-info b { font-weight: 400; text-align: right; line-height: 1.45; padding: 8px 0; }
 .pl-next { position: absolute; right: 77px; bottom: 80px; width: 576px; border-radius: 23px; overflow: hidden; background: rgba(10,10,10,.92); display: none; }
 .pl-next.on { display: block; }
 .pl.ui-on .pl-next { bottom: 330px; }
