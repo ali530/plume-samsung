@@ -38,7 +38,7 @@
     if (m.ev === 'state' || m.ev === 'time') {
       var s = m.s;
       if (s === 1) {                                   // playing
-        if (!st.playing) { st.playing = true; P.$('#ytWait').style.display = 'none'; show(); armAwake(); }
+        if (!st.playing) { st.playing = true; st.offerApp = false; P.$('#ytWait').style.display = 'none'; P.$('#ytHint').classList.remove('on'); show(); armAwake(); }
         if (st.paused && m.ev === 'state') { st.paused = false; show(); }
       }
       if (s === 2 && m.ev === 'state') { st.paused = true; root.classList.add('ui-on'); paint(); }
@@ -69,6 +69,7 @@
     root.innerHTML = '<iframe id="ytFrame" allow="autoplay; encrypted-media; fullscreen" referrerpolicy="strict-origin-when-cross-origin" src="' +
       P.esc(Y.page + '?v=' + encodeURIComponent(v.id) + '&hl=' + (/[؀-ۿ]/.test(v.title) ? 'ar' : 'en')) + '"></iframe>' +
       '<div class="ytp-wait" id="ytWait"><i></i></div>' +
+      '<div class="ytp-hint" id="ytHint"><span class="key">OK</span>Open it in YouTube instead</div>' +
       '<div class="ytp-ui"><div class="ytp-top"><div class="ytp-t">' + P.esc(v.title) + '</div><div class="ytp-c">' + P.esc(v.channel) + '</div></div>' +
       '<div class="ytp-bottom"><span class="ytp-pp" id="ytPP"></span><div class="ytp-bar"><i id="ytFill"></i></div><span class="ytp-time" id="ytT"></span></div></div>';
     document.body.appendChild(root);
@@ -78,11 +79,15 @@
     P.UI.push(layer);
     window.addEventListener('message', onMsg);
     var mine = st;
-    // nothing playing after 15 seconds: say why, and let the YouTube app take over
+    // Not playing after 15 seconds. If the page or YouTube never answered, the YouTube app takes over. If YouTube is
+    // answering, it's usually an ad before the video (YouTube reports "not started" while one plays): wait, and offer
+    // OK to open it in YouTube instead.
     st.failT = setTimeout(function () {
       if (st !== mine || st.playing) return;
-      toApp(!st.loaded ? "The TV didn't load the player page" : !st.heard ? 'The player page loaded but YouTube stayed silent' :
-        st.lastState === -1 || st.lastState === 5 || st.lastState == null ? "YouTube didn't start the video (state " + st.lastState + ')' : '');
+      if (!st.loaded) { toApp("The TV didn't load the player page"); return; }
+      if (!st.heard) { toApp('The player page loaded but YouTube stayed silent'); return; }
+      st.offerApp = true;
+      var h = P.$('#ytHint'); if (h) h.classList.add('on');
     }, 15000);
   };
 
@@ -104,6 +109,7 @@
     key: function (k) {
       if (!st) return;
       if (k === 'back' || k === 'stop') { Y.close(); return; }
+      if (k === 'ok' && st.offerApp && !st.playing) { toApp(''); return; }
       if (k === 'ok' || k === 'pp') { toggle(); return; }
       if (k === 'left' || k === 'rw') { cmd('seek', -10); show(); return; }
       if (k === 'right' || k === 'ff') { cmd('seek', 10); show(); return; }

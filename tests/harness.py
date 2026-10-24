@@ -215,6 +215,7 @@ async def install_routes(ctx, state):
     PAGE = """<!doctype html><script>var id=new URLSearchParams(location.search).get('v'), s=1;function send(m){m.plume=1;parent.postMessage(m,'*')}
       send({ev:'loaded'});
       if (id==='CLUBVID001') setTimeout(function(){send({ev:'error',code:150})},50);
+      else if (id==='ADFIRST001') setInterval(function(){send({ev:'time',t:0,d:0,s:-1})},300);
       else { setTimeout(function(){send({ev:'state',s:1})},50); setInterval(function(){send({ev:'time',t:12,d:600,s:s})},300); }
       addEventListener('message',function(e){var m=e.data||{}; if(!m.cmd) return; if(m.cmd==='pause'){s=2;send({ev:'state',s:2})} if(m.cmd==='play'){s=1;send({ev:'state',s:1})} send({ev:'echo',cmd:m.cmd,by:m.by})});</script>"""
     await ctx.route('https://ali530.github.io/**', lambda r: r.fulfill(body=PAGE, content_type='text/html'))
@@ -351,6 +352,12 @@ async def main():
         await key('Escape'); await pg.wait_for_timeout(300)
         check('Back closes it', await ev_("P.UI.top().name == 'centre' && !document.getElementById('ytp') && !document.body.classList.contains('playing')"))
         # a channel that allows its videos only on YouTube: the YouTube app opens instead
+        # an ad first: YouTube answers but the video hasn't started; Plume waits and offers OK → YouTube
+        await ev_("P.YT.open({id:'ADFIRST001', title:'With an ad', channel:'Some channel'})"); await pg.wait_for_timeout(16500)
+        check('an ad before the video: Plume waits and offers YouTube', await ev_("P.UI.top().name == 'youtube' && document.getElementById('ytHint').classList.contains('on')"))
+        await key('Enter'); await pg.wait_for_timeout(400)
+        calls = await ev_("JSON.stringify(window.__calls.filter(c=>c[0]=='launchAppControl').slice(-1))")
+        check('...OK then opens it in YouTube', 'ADFIRST001' in calls and await ev_("P.UI.top().name") == 'centre', calls)
         await ev_("P.YT.open({id:'CLUBVID001', title:'Al Ahli 2-1 Al Qadsiah | Highlights', channel:'Al Ahli Saudi Club'})"); await pg.wait_for_timeout(800)
         calls = await ev_("JSON.stringify(window.__calls.filter(c=>c[0]=='launchAppControl').slice(-1))")
         check('...a blocked one opens in the YouTube app, saying why', 'CLUBVID001' in calls and await ev_("P.UI.top().name") == 'centre' and '(150)' in await ev_("document.getElementById('toast').textContent"), calls)
