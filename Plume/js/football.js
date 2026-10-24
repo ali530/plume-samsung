@@ -259,6 +259,40 @@
     return fixCache[compKey].data;
   };
 
+  /* one match in detail (OK on a finished match → Match details): stats, line-ups and the goals, cards and changes */
+  var sumCache = {};
+  F.summary = function (m) {
+    var c = F.byKey[m.comp]; if (!c) return Promise.reject(new Error('unknown competition'));
+    var hit = sumCache[m.id];
+    if (hit && Date.now() - hit.at < 10 * 60000) return Promise.resolve(hit.data);
+    return P.json(BASE + c.slug + '/summary?event=' + m.id, {}, 12000).then(function (d) {
+      var side = function (tid) { return String(tid) === m.home.id ? 'home' : 'away'; };
+      var stats = {};
+      ((d.boxscore || {}).teams || []).forEach(function (t) {
+        var sd = side((t.team || {}).id);
+        (t.statistics || []).forEach(function (x) { (stats[x.name] = stats[x.name] || { label: x.label || x.name })[sd] = x.displayValue; });
+      });
+      var lineups = { home: [], away: [] };
+      (d.rosters || []).forEach(function (r) {
+        var sd = r.homeAway || side((r.team || {}).id);
+        (r.roster || []).forEach(function (p) {
+          (lineups[sd] = lineups[sd] || []).push({ name: ((p.athlete || {}).displayName) || '', num: p.jersey || '', pos: ((p.position || {}).abbreviation) || '',
+            starter: !!p.starter, off: !!p.subbedOut, on: !!p.subbedIn });
+        });
+      });
+      var events = (d.keyEvents || []).map(function (e) {
+        var ty = ((e.type || {}).text || '');
+        var kind = /goal|penalty - scored/i.test(ty) ? 'goal' : /red/i.test(ty) ? 'red' : /yellow/i.test(ty) ? 'yellow' : /substitution/i.test(ty) ? 'sub' : null;
+        if (!kind) return null;
+        var who = (e.participants || []).map(function (x) { return (x.athlete || {}).displayName; }).filter(Boolean);
+        return { kind: kind, min: (e.clock || {}).displayValue || '', side: side((e.team || {}).id), who: who, own: /own goal/i.test(ty + ' ' + (e.text || '')), pen: /penalty/i.test(ty) };
+      }).filter(Boolean);
+      var data = { stats: stats, lineups: lineups, events: events };
+      sumCache[m.id] = { data: data, at: Date.now() };
+      return data;
+    });
+  };
+
   var tablesAt = 0, loading = false;
   F.refresh = function (onlyLive) {
     if (loading) return Promise.resolve();

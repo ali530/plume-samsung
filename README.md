@@ -15,6 +15,7 @@ A calm, ad-free home screen for Samsung Tizen TVs, built after
 - **Competitions:** Saudi Pro League, King's Cup, AFC Champions League Elite and Two (matches with Saudi clubs), Club World Cup, Saudi Arabia's matches (World Cup qualifiers, Asian Cup, Gulf Cup, friendlies), and the Premier League, La Liga and Champions League (all matches).
 - **Your teams:** Al Hilal, Saudi Arabia and Manchester United. Their matches always show and come first.
 - **Match alerts:** kick-off, goals (with the scorer) and full time of your teams' matches and the ones you set a reminder for. They pop up over anything Plume shows, the PS5 and beIN included, go away after 10 seconds and never take the remote. Not over a film playing in Plume. Live scores refresh every 25 seconds while one of these matches is on. Settings → Football → *Match alerts*.
+- **Finished matches:** OK on a finished match → *Watch highlights* (opens the video in the YouTube app), *Match details* (stats, goals, cards and changes, line-ups) or *Whole table*. Highlights are searched on YouTube and ranked: the competition's broadcaster or league channel first (Thmanyah, beIN, Premier League, LaLiga, UEFA, AFC…), then the clubs' channels, then any channel; a video counts only if it was posted after kick-off and its title has the score or both teams. Highlights usually go up within a couple of hours.
 - **Reminders** pop up 10 minutes before kick-off while Plume is on screen. OK switches to beIN.
 - **Sleep screen** after 1½ minutes (before the S90CA's own protection screen at 2 minutes) idle: drifting mountain and nature photos, a large clock with the date and weather, and up to three live or upcoming matches.
 - **Plex player:** a Continue Watching card plays right where you stopped, inside Plume, with Samsung's own video player (4K, HDR10, Dolby Vision, Dolby Atmos). Settings and Info on the left, −10 / pause / +10 in the middle, Next episode on the right; Up for the progress bar (hold to speed up). Each episode starts with Plex's own choices for it: its subtitle track, its audio track and its Original quality. The gear lists that episode's subtitles and audio, its Original (resolution and bitrate) and the lower steps below it; changes are saved to Plex. Several presses of −10/+10 make one jump. The next episode plays after a 10-second countdown, from the same version. Your position is saved to Plex on every version of the title. Info shows the version playing and how subtitles are shown.
@@ -37,6 +38,19 @@ Tizen Studio and your Samsung certificate are already set up on your PC from the
    It packages, signs, installs and opens Plume.
 
 If the Desktop is inside OneDrive, unzip it anywhere else (for example `C:\Plume`) and run `install.bat` from there.
+
+## YouTube key for highlights (optional, about 10 minutes, free)
+
+Without a key Plume reads YouTube's plain search page, which YouTube sometimes blocks. With a key it uses YouTube's official search.
+
+1. Go to **console.cloud.google.com** and sign in with a Google account.
+2. At the top, **Select a project → New project**, name it `Plume`, **Create**, and select it.
+3. **APIs & Services → Library**, search **YouTube Data API v3**, open it and press **Enable**.
+4. **APIs & Services → Credentials → Create credentials → API key**. Copy the key (it starts with `AIza`).
+5. Optional but wise: on that key, **Edit → API restrictions → Restrict key → YouTube Data API v3 → Save**.
+6. Open `Plume\youtube-key.txt`, paste the key on its own line, save, and run `install.bat` again.
+
+Settings → Football → *YouTube key for highlights* then shows **Set**. The free allowance (about 100 searches a day) is far more than needed; each finished match you open costs one or two searches, and results are remembered for a few hours.
 
 ## First run on the TV
 
@@ -61,7 +75,8 @@ No account, no ads, no tracking. Plume connects only to:
 - **plex.tv** and your Plex server, for Continue Watching (Plume never sees your Plex password),
 - **ESPN's public scoreboard feed**, for fixtures, scores and the table,
 - **Open-Meteo**, for the weather of the city you pick,
-- **Unsplash**, for the sleep screen photos.
+- **Unsplash**, for the sleep screen photos,
+- **YouTube**, only when you ask for a match's highlights.
 
 ## Files
 

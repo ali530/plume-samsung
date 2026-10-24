@@ -69,10 +69,10 @@
   };
 
   /* ---------- small menu (hold OK on a tile) ---------- */
-  U.menu = function (anchor, title, options) {
-    var wrap = P.$('#dialog');
+  U.menu = function (anchor, title, options, wide) {
+    var wrap = P.$('#dialog'), W = wide ? 860 : 480;
     var r = anchor ? anchor.getBoundingClientRect() : { left: 760, top: 400, width: 400, bottom: 400 };
-    wrap.innerHTML = '<div class="menu" style="left:' + Math.max(40, Math.min(1920 - 520, r.left + r.width / 2 - 240)) + 'px;' +
+    wrap.innerHTML = '<div class="menu' + (wide ? ' wide' : '') + '" style="left:' + Math.max(40, Math.min(1920 - W - 40, r.left + r.width / 2 - W / 2)) + 'px;' +
       (r.top > 540 ? 'bottom:' + (1080 - r.top + 24) + 'px' : 'top:' + (r.bottom + 24) + 'px') + '">' +
       (title ? '<div class="menu-title">' + P.esc(title) + '</div>' : '') +
       options.map(function (op, i) { return '<button class="mrow" data-i="' + i + '">' + (op.icon ? P.icon(op.icon) : '') + '<span>' + op.label + '</span></button>'; }).join('') +

@@ -9,7 +9,14 @@
   C.act = function (m) {
     var F = P.Football;
     if (m.state === 'in') { P.Apps.switchTo('hdmi:bein'); return; }
-    if (m.state === 'post') { P.UI.toast(P.esc(m.home.short + ' ' + F.centreText(m) + ' ' + m.away.short) + ' · ' + F.statusText(m)); return; }
+    if (m.state === 'post') {   // a finished match: its highlights, its details, its table
+      var anchor = P.$('#centre .mline.focus') || P.$('.mcard.focus');
+      P.UI.menu(anchor, m.home.short + ' ' + F.centreText(m) + ' ' + m.away.short, [
+        { label: 'Watch highlights', icon: 'play', act: function () { P.Highlights.open(m, anchor); } },
+        { label: 'Match details', icon: 'list', act: function () { if (!C.open_) C.open(m.id); C.openDetails(m); } },
+        { label: 'Whole table', icon: 'grid', act: function () { if (!C.open_) C.open(m.id); C.sideComp = m.comp; C.openFull(); } }]);
+      return;
+    }
     if (/postpon|cancel/i.test(m.statusName)) { P.UI.toast('This match is ' + F.statusText(m).toLowerCase()); return; }
     var on = F.toggleReminder(m);
     P.UI.toast(on ? 'Reminder set · pops up 10 min before kick-off' : 'Reminder removed');
@@ -17,7 +24,7 @@
   };
   C.okLabel = function (m) {
     if (m.state === 'in') return 'Watch on beIN';
-    if (m.state === 'post') return 'Result';
+    if (m.state === 'post') return 'Highlights and details';
     return P.Football.hasReminder(m) ? 'Remove reminder' : 'Remind me';
   };
 
@@ -133,8 +140,56 @@
     });
     return out;
   }
+  /* ---------- one finished match: stats and timeline on the left, line-ups on the right ---------- */
+  var STATS = [['possessionPct', 'Possession', '%'], ['totalShots', 'Shots'], ['shotsOnTarget', 'On target'], ['wonCorners', 'Corners'],
+    ['foulsCommitted', 'Fouls'], ['offsides', 'Offsides'], ['yellowCards', 'Yellow cards'], ['redCards', 'Red cards'], ['saves', 'Saves']];
+  function detailsLeft(m, d) {
+    if (!d) return '<div class="f-empty">Loading the match…</div>';
+    if (d.error) return '<div class="f-empty">' + P.esc(d.error) + '</div>';
+    var rows = STATS.filter(function (s) { return d.stats[s[0]]; }).map(function (s) {
+      var x = d.stats[s[0]], h = parseFloat(x.home) || 0, a = parseFloat(x.away) || 0, tot = h + a || 1;
+      return '<div class="ds-r"><b>' + P.esc(x.home || '0') + (s[2] || '') + '</b><span class="ds-l">' + s[1] + '</span><b class="r">' + P.esc(x.away || '0') + (s[2] || '') + '</b>' +
+        '<div class="ds-bar"><i style="width:' + Math.round(h / tot * 100) + '%"></i><i class="a" style="width:' + Math.round(a / tot * 100) + '%"></i></div></div>';
+    }).join('');
+    var ICON = { goal: '⚽', yellow: '<i class="card y"></i>', red: '<i class="card r"></i>', sub: '⇄' };
+    var tl = d.events.map(function (e) {
+      var who = e.kind === 'sub' ? (e.who[0] || '') + (e.who[1] ? ' ↔ ' + e.who[1] : '') : (e.who[0] || '') + (e.pen ? ' (pen)' : '') + (e.own ? ' (og)' : '');
+      return '<div class="tl-r ' + e.side + (e.kind === 'goal' ? ' goal' : '') + '"><span class="tl-m">' + P.esc(e.min) + '</span><span class="tl-i">' + ICON[e.kind] + '</span><span class="tl-w">' + P.esc(who) + '</span></div>';
+    }).join('');
+    return (rows ? '<div class="f-h">Stats</div>' + rows : '') + (tl ? '<div class="f-h">Match</div>' + tl : '') || '<div class="f-empty">No details for this match.</div>';
+  }
+  function detailsRight(m, d) {
+    if (!d || d.error) return '';
+    var col = function (list) {
+      var st = list.filter(function (p) { return p.starter; }), bench = list.filter(function (p) { return !p.starter; });
+      var line = function (p) { return '<div class="lu-r"><span class="lu-n">' + P.esc(p.num) + '</span><span class="lu-p">' + P.esc(p.name) + (p.off ? ' <i>↓</i>' : '') + (p.on ? ' <i class="on">↑</i>' : '') + '</span><span class="lu-pos">' + P.esc(p.pos) + '</span></div>'; };
+      return st.map(line).join('') + (bench.length ? '<div class="lu-h">Substitutes</div>' + bench.map(line).join('') : '');
+    };
+    if (!d.lineups.home.length && !d.lineups.away.length) return '<div class="f-empty">No line-ups for this match.</div>';
+    return '<div class="lu"><div><div class="f-h">' + P.esc(m.home.short) + '</div>' + col(d.lineups.home) + '</div><div><div class="f-h">' + P.esc(m.away.short) + '</div>' + col(d.lineups.away) + '</div></div>';
+  }
+  C.openDetails = function (m) {
+    C.full = { kind: 'details', m: m, comp: m.comp, col: 0, data: null };
+    root().classList.add('full-on');
+    renderFull();
+    var f = C.full;
+    P.Football.summary(m).then(function (d) { if (C.full === f) { f.data = d; renderFull(); } },
+      function () { if (C.full === f) { f.data = { error: "Couldn't load this match's details" }; renderFull(); } });
+  };
+
   function renderFull() {
     var f = C.full, F = P.Football, c = F.byKey[f.comp] || {}, box = P.$('#cFull');
+    if (f.kind === 'details') {
+      if (!box) { box = P.el('div', 'c-full'); box.id = 'cFull'; root().appendChild(box); }
+      var m = f.m;
+      var dhtml = '<div class="f-top"><h2 class="d-h">' + P.UI.crest(m.home, 'sm') + P.esc(m.home.short) + ' <b>' + F.centreText(m) + '</b> ' + P.esc(m.away.short) + P.UI.crest(m.away, 'sm') +
+        '<small>' + P.esc(m.compName + ' · ' + F.statusText(m) + (m.venue ? ' · ' + m.venue : '')) + '</small></h2>' +
+        '<span class="f-keys"><span class="key">OK</span>Highlights · <span class="key">◀ ▶</span>Switch · <span class="key">▲ ▼</span>Scroll · <span class="key">Back</span>Close</span></div>' +
+        '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0">' + detailsLeft(m, f.data) + '</section>' +
+        '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-title">Line-ups</div>' + detailsRight(m, f.data) + '</section></div>';
+      if (box._html !== dhtml) { box._html = dhtml; box.innerHTML = dhtml; }
+      return;
+    }
     if (!box) { box = P.el('div', 'c-full'); box.id = 'cFull'; root().appendChild(box); }
     var html = '<div class="f-top"><h2>' + P.esc(c.name || '') + '</h2><span class="f-keys"><span class="key">◀ ▶</span>Switch · <span class="key">▲ ▼</span>Scroll · <span class="key">Back</span>Close</span></div>' +
       '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-title">Table</div>' + fullTable(f.comp, f.m) + '</section>' +
@@ -227,6 +282,7 @@
         if (k === 'back') { closeFull(); return; }
         if (k === 'left' || k === 'right') { C.full.col = k === 'left' ? 0 : 1; renderFull(); return; }
         if ((k === 'up' || k === 'down') && col) col.scrollTop += k === 'up' ? -300 : 300;
+        if (k === 'ok' && C.full.kind === 'details') P.Highlights.open(C.full.m, null);
         return;
       }
       if (k === 'back') { if (C.zone === 'table') { C.zone = 'list'; paint(); return; } C.close(); return; }

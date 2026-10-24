@@ -148,6 +148,16 @@ async def install_routes(ctx, state):
             if slug not in ('ksa.1', 'eng.1', 'esp.1'):
                 await route.fulfill(json={}); return
             await route.fulfill(json=standings(slug)); return
+        if u.path.endswith('/summary'):   # one match: stats, line-ups, events
+            T = lambda a: {'id': TEAMS[a][0], 'displayName': TEAMS[a][1]}
+            st = lambda a, pos, sh, on: {'team': T(a), 'statistics': [{'name': 'possessionPct', 'label': 'Possession', 'displayValue': pos}, {'name': 'totalShots', 'label': 'Shots', 'displayValue': sh}, {'name': 'shotsOnTarget', 'label': 'On target', 'displayValue': on}]}
+            ros = lambda a, side, names: {'team': T(a), 'homeAway': side, 'roster': [{'starter': i < 11, 'jersey': str(i + 1), 'athlete': {'displayName': n}, 'position': {'abbreviation': 'M'}} for i, n in enumerate(names)]}
+            await route.fulfill(json={'boxscore': {'teams': [st('QAD', '41', '9', '3'), st('AHL', '59', '15', '7')]},
+                'rosters': [ros('AHL', 'home', ['Mendy', 'Ibañez', 'Demiral', 'Kessie', 'Mahrez', 'Firmino', 'Toney', 'Galeno', 'Majrashi', 'Hindi', 'Abdulhamid', 'Saint-Maximin']),
+                            ros('QAD', 'away', ['Koen', 'Nacho', 'Otavio', 'Aubameyang', 'Quiñones', 'Carrasco', 'Bonsu', 'Al Fatil', 'Bakshi', 'Kadesh', 'Alhamdan'])],
+                'keyEvents': [{'type': {'text': 'Goal'}, 'clock': {'displayValue': "18'"}, 'team': T('AHL'), 'participants': [{'athlete': {'displayName': 'Ivan Toney'}}]},
+                              {'type': {'text': 'Yellow Card'}, 'clock': {'displayValue': "40'"}, 'team': T('QAD'), 'participants': [{'athlete': {'displayName': 'Nacho'}}]},
+                              {'type': {'text': 'Goal'}, 'clock': {'displayValue': "52'"}, 'team': T('QAD'), 'participants': [{'athlete': {'displayName': 'Aubameyang'}}]}]}); return
         slug = parts[-2]
         await route.fulfill(json={'events': data.get(slug, [])})
 
@@ -193,6 +203,13 @@ async def install_routes(ctx, state):
         await route.fulfill(path=os.path.join(ASSETS, folder, name))
 
     await ctx.route('https://site.api.espn.com/**', espn)
+    async def youtube(route):   # YouTube's search page, as a TV gets it
+        yd = {'contents': {'twoColumnSearchResultsRenderer': {'primaryContents': {'sectionListRenderer': {'contents': [{'itemSectionRenderer': {'contents': [
+            {'videoRenderer': {'videoId': 'OTHER00001', 'title': {'runs': [{'text': 'Al Ahli vs Al Qadsiah 2018 full match'}]}, 'ownerText': {'runs': [{'text': 'Random Uploads'}]}}},
+            {'videoRenderer': {'videoId': 'THMANYAH01', 'title': {'runs': [{'text': 'ملخص المباراة: الأهلي ضد القادسية 2-1 | كأس الملك'}]}, 'ownerText': {'runs': [{'text': 'رياضة ثمانية'}]}}},
+            {'videoRenderer': {'videoId': 'CLUBVID001', 'title': {'runs': [{'text': 'Al Ahli 2-1 Al Qadsiah | Highlights'}]}, 'ownerText': {'runs': [{'text': 'Al Ahli Saudi Club'}]}}}]}}]}}}}}
+        await route.fulfill(body='<html><script>var ytInitialData = ' + json.dumps(yd) + ';</script></html>', content_type='text/html')
+    await ctx.route('https://www.youtube.com/**', youtube)
     await ctx.route('https://api.open-meteo.com/**', weather)
     await ctx.route('https://plex.tv/**', plextv)
     await ctx.route('http://192.168.1.20:32400/**', pms)
@@ -296,6 +313,34 @@ async def main():
         y2 = await ev_("(function(){var t=document.getElementById('cTrack');return getComputedStyle(t).transform})()")
         y3 = await ev_("(function(){var t=document.getElementById('cTrack');return t.style.transform})()")
         check('live update: the list stays where it is', y1 == y0 and y3 == y0 and 'matrix' in y2 or y0 in ('', 'none'), [y0, y1, y2, y3])
+        # highlights: the finder ranks the broadcaster first, the club next, and leaves out other matches
+        rank = await ev_("""(function(){var H=P.Highlights, m={comp:'spl', date:new Date(Date.now()-5*3600e3), home:{name:'Al Ahli Saudi', short:'Al Ahli', score:'4'}, away:{name:'Al Khaleej', short:'Al Khaleej', score:'1'}};
+            var t=function(title,ch,at){var j=H._judge({title:title,channel:ch,at:at||0},m);return j?j.tier:0};
+            return [t('ملخص المباراة: الأهلي ضد الخليج 4-1 | الجولة 11 من دوري روشن السعودي','رياضة ثمانية'), t('Al Ahli 4-1 Al Khaleej | Highlights','Al Ahli Saudi Club'),
+                    t('Al Ahli 4-1 Al Khaleej goals','Some Fan'), t('Al Ahli vs Al Khaleej full match','Some Fan'), t('Al Hilal 4-1 Al Nassr highlights','رياضة ثمانية'),
+                    t('ملخص الأهلي والخليج 4-1','رياضة ثمانية', Date.now()-400*86400e3)]})()""")
+        check('highlights ranking: broadcaster 1, club 2, any 3; full match, other teams, old meetings left out', rank == [1, 2, 3, 0, 0, 0], rank)
+        mu = await ev_("(function(){var m={comp:'ucl', date:new Date(Date.now()-3600e3), home:{name:'Como', short:'Como', score:'4'}, away:{name:'Manchester United', short:'Man United', score:'1'}}; var j=P.Highlights._judge({title:'Como 4-1 Man Utd | Highlights', channel:'Manchester United', at:Date.now()}, m); return j && j.tier})()")
+        check('club titles with short names: Como 4-1 Man Utd', mu == 2, mu)
+        # a finished match: OK offers highlights, details and the table
+        await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.state=='post');P.Centre.zone='list';P.Centre.at=i;P.Centre.focusId=ms[i].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
+        await key('Enter'); await pg.wait_for_timeout(300)
+        opts = await ev_("[...document.querySelectorAll('#dialog .mrow span')].map(e=>e.textContent)")
+        check('finished match: Watch highlights, Match details, Whole table', opts == ['Watch highlights', 'Match details', 'Whole table'], opts)
+        await key('Enter'); await pg.wait_for_timeout(1500)
+        vids = await ev_("[...document.querySelectorAll('#dialog .mrow span')].map(e=>e.textContent)")
+        check('highlights found, Thmanyah first, the full match from 2018 left out', len(vids) == 2 and vids[0].startswith('ملخص المباراة') and 'best match' in vids[0], vids)
+        await shot('05c-highlights')
+        await key('Enter'); await pg.wait_for_timeout(300)
+        calls = await ev_("JSON.stringify(window.__calls.filter(c=>c[0]=='launchAppControl').slice(-1))")
+        check('opens that video in the YouTube app', 'THMANYAH01' in calls, calls)
+        await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.state=='post');P.Centre.zone='list';P.Centre.at=i;P.Centre.focusId=ms[i].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
+        await key('Enter'); await pg.wait_for_timeout(300)
+        await key('ArrowDown'); await key('Enter'); await pg.wait_for_timeout(900)
+        det = await ev_("(document.getElementById('cFull')||{}).textContent||''")
+        check('Match details: stats, timeline and line-ups', 'Possession' in det and 'Ivan Toney' in det and 'Substitutes' in det and 'Saint-Maximin' in det, det[:200])
+        await shot('05d-match-details')
+        await key('Escape'); await pg.wait_for_timeout(200)
         # the table: Right focuses it, OK opens the whole table and the coming matches
         await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.comp=='spl');P.Centre.zone='list';P.Centre.at=i<0?0:i;P.Centre.focusId=ms[P.Centre.at].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
         await key('ArrowRight'); await pg.wait_for_timeout(200)
@@ -377,6 +422,7 @@ async def main():
         check('...over the HDMI view, without taking the remote', await ev_("getComputedStyle(document.getElementById('alert')).visibility=='visible' && P.UI.top().name != 'alert'"))
         await shot('09d-goal-alert')
         await ev_("document.body.classList.remove('input-on')")
+        await ev_("(function(){var m=P.Football.day(0).filter(x=>x.state=='in')[0]; if(P.Football.hasReminder(m)) P.Football.toggleReminder(m);})()")   # tidy up: no reminder banner later
         check('down from apps reaches the matches title', (await ev_("P.Home.row")) == 'matchesH')
         await key('ArrowDown'); await pg.wait_for_timeout(200)
         check('...then the matches row', (await ev_("P.Home.row")) == 'matches')
@@ -390,7 +436,7 @@ async def main():
         await shot('09c-both-folded')
         check('Continue Watching folds too, remembered', await ev_("document.getElementById('cwSec').classList.contains('folded') && P.S.get('folded').cw && P.S.get('folded').matches"))
         await key('Enter'); await key('ArrowUp'); await key('Enter'); await pg.wait_for_timeout(300)
-        check('OK again opens them', await ev_("!document.querySelector('.sec.folded')"))
+        check('OK again opens them', await ev_("!document.querySelector('.sec.folded')"), await ev_("JSON.stringify([P.Home.row, P.UI.top().name, P.S.get('folded'), document.querySelector('#dialog .menu-title') && document.querySelector('#dialog .menu-title').textContent])"))
         await ev_("P.Home.focus('matches')")
         await ev_("P.S.set('matchesRow', false)")
 

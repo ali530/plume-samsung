@@ -36,6 +36,7 @@
         { section: 'Football' },
         { label: 'Competitions', value: function () { var c = get('comps'); return Object.keys(c).filter(function (k) { return c[k]; }).length + ' of ' + F.COMPS.length; }, open: 'comps' },
         { label: 'Match alerts', value: function () { return ''; }, toggle: function () { return get('matchAlerts'); }, act: function () { set('matchAlerts', !get('matchAlerts')); }, note: "Kick-off, goals and full time of your teams' matches and the ones you set a reminder for, also over the PS5 and beIN" },
+        { label: 'YouTube key for highlights', value: function () { return P.Highlights.key ? 'Set' : 'Not set · plain search'; }, act: function () {} },
         { label: 'Your teams', value: function () { return get('favs').length ? get('favs').join(', ') : 'None'; }, open: 'favs' },
         { section: 'Inputs' },
         { label: 'PS5', value: function () { return 'HDMI ' + get('ps5Port'); }, act: cycle('ps5Port', [1, 2, 3, 4]) },
@@ -48,7 +49,7 @@
         { section: 'Weather' },
         { label: 'City', value: function () { return get('city'); }, open: 'city' },
         { section: 'About' },
-        { label: 'Plume for Samsung', value: function () { return 'Version 2.5'; }, act: function () {} }
+        { label: 'Plume for Samsung', value: function () { return 'Version 2.6'; }, act: function () {} }
       ].filter(Boolean) },
 
       row: { title: 'Apps in row', rows: P.Apps.all().map(function (it) {

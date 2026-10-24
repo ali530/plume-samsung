@@ -1,0 +1,4 @@
+# Your free YouTube key for match highlights (optional).
+# Paste it on its own line below (it starts with AIza), save, then run install.bat again.
+# Without a key, Plume uses YouTube's plain search page instead.
+
