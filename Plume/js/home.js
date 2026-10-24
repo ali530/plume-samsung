@@ -245,7 +245,9 @@
     if (H.row === 'icons') { if (k === 'settings') P.Settings.open(); else if (k === 'allapps') P.AllApps.open(); return; }
     if (H.row === 'strip') {
       if (hold || !stripMatch) { P.Centre.open(stripMatch && stripMatch.id); return; }
-      P.Centre.act(stripMatch); return;
+      // the strip is a shortcut: live → beIN at once, upcoming → reminder; the match centre has the full menu
+      if (stripMatch.state === 'in') P.Apps.switchTo('hdmi:bein'); else if (stripMatch.state === 'pre') P.Centre.remind(stripMatch); else P.Centre.act(stripMatch);
+      return;
     }
     if (H.row === 'apps') {
       var it = P.Apps.items[k];

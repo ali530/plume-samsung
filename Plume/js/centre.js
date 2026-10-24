@@ -1,31 +1,33 @@
-/* The match centre (the football tile): Yesterday / Today / Tomorrow, matches grouped by competition,
-   details of the focused match, and the Saudi Pro League table. */
+/* The match centre (the football tile): a month of days each way (today first), matches grouped by competition,
+   details of the focused match, and its table. OK on a match: its details first, then beIN, highlights or a reminder. */
 (function () {
-  var C = { day: 0, zone: 'list', bar: 2, at: 0, open_: false };
+  var RANGE = 30;                              // days back and ahead in the date strip
+  var C = { day: 0, zone: 'list', bar: RANGE + 1, at: 0, open_: false };
   var root = function () { return P.$('#centre'); };
-  var DAYS = [['d:-1', 'Yesterday', -1], ['d:0', 'Today', 0], ['d:1', 'Tomorrow', 1]];
+  function dayLabel(off) {
+    if (off === 0) return 'Today'; if (off === -1) return 'Yesterday'; if (off === 1) return 'Tomorrow';
+    var d = P.dayStart(new Date(), off); return P.DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + P.MONTHS[d.getMonth()];
+  }
 
-  /* what OK does on a match */
-  C.act = function (m) {
-    var F = P.Football;
-    if (m.state === 'in') { P.Apps.switchTo('hdmi:bein'); return; }
-    if (m.state === 'post') {   // a finished match: its highlights, its details, its table
-      var anchor = P.$('#centre .mline.focus') || P.$('.mcard.focus');
-      P.UI.menu(anchor, m.home.short + ' ' + F.centreText(m) + ' ' + m.away.short, [
-        { label: 'Watch highlights', icon: 'play', act: function () { P.Highlights.open(m, anchor); } },
-        { label: 'Match details', icon: 'list', act: function () { if (!C.open_) C.open(m.id); C.openDetails(m); } },
-        { label: 'Whole table', icon: 'grid', act: function () { if (!C.open_) C.open(m.id); C.sideComp = m.comp; C.openFull(); } }]);
-      return;
-    }
-    if (/postpon|cancel/i.test(m.statusName)) { P.UI.toast('This match is ' + F.statusText(m).toLowerCase()); return; }
-    var on = F.toggleReminder(m);
+  function remind(m) {
+    var F = P.Football, on = F.toggleReminder(m);
     P.UI.toast(on ? 'Reminder set · pops up 10 min before kick-off' : 'Reminder removed');
     C.render(); P.Home.renderStrip(); P.Home.renderMatchesRow();
+  }
+  /* what OK does on a match: a menu, with the match's details first */
+  C.act = function (m) {
+    var F = P.Football, anchor = P.$('#centre .mline.focus') || P.$('.mcard.focus');
+    var second = null;
+    if (m.state === 'in') second = { label: 'Watch on beIN', icon: 'play', act: function () { P.Apps.switchTo('hdmi:bein'); } };
+    else if (m.state === 'post') second = { label: 'Watch highlights', icon: 'play', act: function () { P.Highlights.open(m, anchor); } };
+    else if (!/postpon|cancel/i.test(m.statusName)) second = { label: F.hasReminder(m) ? 'Remove reminder' : 'Remind me', icon: 'bell', act: function () { remind(m); } };
+    P.UI.menu(anchor, m.home.short + ' ' + F.centreText(m) + ' ' + m.away.short, [
+      { label: m.state === 'in' ? 'Live details' : 'Match details', icon: 'list', act: function () { if (!C.open_) C.open(m.id); C.openDetails(m); } },
+      second,
+      { label: 'Whole table', icon: 'grid', act: function () { if (!C.open_) C.open(m.id); C.sideComp = m.comp; C.openFull(); } }].filter(Boolean));
   };
   C.okLabel = function (m) {
-    if (m.state === 'in') return 'Watch on beIN';
-    if (m.state === 'post') return 'Highlights and details';
-    return P.Football.hasReminder(m) ? 'Remove reminder' : 'Remind me';
+    return 'Details · ' + (m.state === 'in' ? 'Watch on beIN' : m.state === 'post' ? 'Highlights' : P.Football.hasReminder(m) ? 'Reminder' : 'Remind me');
   };
 
   /* the matches in the order they're shown: grouped by competition (moving Down follows the screen, not kick-off times) */
@@ -102,7 +104,7 @@
   /* ---------- the whole table and the coming matches of one competition (OK on the table) ---------- */
   function whenText(d) {
     var t = P.dayStart(new Date()), k = Math.round((P.dayStart(d) - t) / 86400000);
-    return k === 0 ? 'Today' : k === 1 ? 'Tomorrow' : P.dateText(d);
+    return k === 0 ? 'Today' : k === 1 ? 'Tomorrow' : k === -1 ? 'Yesterday' : P.dateText(d);
   }
   function fullTable(comp, m) {
     var F = P.Football, side = F.side(comp), ids = m ? [m.home.id, m.away.id] : [];
@@ -128,14 +130,19 @@
     return '<div class="t-row' + cls + '">' + (x.state === 'in' ? '<i class="dot"></i>' : '') + P.UI.crest(x.home, 'xs') + '<span class="nm">' + P.esc(x.home.short) + '</span>' +
       '<b class="rd">' + P.esc(mid) + '</b><span class="nm r">' + P.esc(x.away.short) + '</span>' + P.UI.crest(x.away, 'xs') + '</div>';
   }
+  /* results and coming matches in one list, two weeks each way; it opens at today */
   function fixtures(comp, m) {
     var list = P.Football.fixtures(comp), ids = m ? [m.home.id, m.away.id] : [];
-    if (!list) return '<div class="f-empty">Loading the coming matches…</div>';
-    if (!list.length) return '<div class="f-empty">No matches in the next two weeks.</div>';
-    var out = '', last = '';
+    if (!list) return '<div class="f-empty">Loading matches…</div>';
+    if (!list.length) return '<div class="f-empty">No matches two weeks either side of today.</div>';
+    var out = '', last = '', marked = false, today = +P.dayStart(new Date());
     list.forEach(function (x) {
       var d = whenText(x.date);
-      if (d !== last) { out += '<div class="f-h">' + d + '</div>'; last = d; }
+      if (d !== last) {
+        var mark = !marked && (x.date >= today || x.state !== 'post');
+        if (mark) marked = true;
+        out += '<div class="f-h"' + (mark ? ' id="fToday"' : '') + '>' + d + '</div>'; last = d;
+      }
       out += fixLine(x, ids);
     });
     return out;
@@ -146,6 +153,9 @@
   function detailsLeft(m, d) {
     if (!d) return '<div class="f-empty">Loading the match…</div>';
     if (d.error) return '<div class="f-empty">' + P.esc(d.error) + '</div>';
+    if (m.state === 'pre' && !d.events.length && !Object.keys(d.stats).length)
+      return '<div class="f-h">Kick-off</div><div class="pre-ko">' + P.esc(P.dateText(m.date) + ' · ' + P.hhmm(m.date)) + '<small>' + (m.date > Date.now() ? 'in ' + P.esc(P.until(m.date - Date.now())) : '') + '</small></div>' +
+        (m.venue ? '<div class="pre-v">' + P.icon('pin') + P.esc(m.venue) + '</div>' : '') + '<div class="f-empty">Stats and the minute-by-minute appear once the match starts.</div>';
     var rows = STATS.filter(function (s) { return d.stats[s[0]]; }).map(function (s) {
       var x = d.stats[s[0]], h = parseFloat(x.home) || 0, a = parseFloat(x.away) || 0, tot = h + a || 1;
       return '<div class="ds-r"><b>' + P.esc(x.home || '0') + (s[2] || '') + '</b><span class="ds-l">' + s[1] + '</span><b class="r">' + P.esc(x.away || '0') + (s[2] || '') + '</b>' +
@@ -158,14 +168,63 @@
     }).join('');
     return (rows ? '<div class="f-h">Stats</div>' + rows : '') + (tl ? '<div class="f-h">Match</div>' + tl : '') || '<div class="f-empty">No details for this match.</div>';
   }
+  /* ---------- line-ups on a pitch: each team's formation from its keeper outwards; home on the left ---------- */
+  function lineOf(p) {
+    var a = (p.pos || '').toUpperCase(), n = (p.posName || '').toLowerCase();
+    if (a === 'G' || a === 'GK' || /goalkeeper/.test(n)) return 0;
+    if (/^(CD|CB|LB|RB|D|SW|LWB|RWB|WB|CB-L|CB-R)/.test(a) || /defender|full.?back|centre.?back|center.?back/.test(n)) return 1;
+    if (/^DM/.test(a) || /defensive mid/.test(n)) return 2;
+    if (/^AM/.test(a) || /attacking mid/.test(n)) return 4;
+    if (/^(LW|RW|F|CF|ST|S|LF|RF|W)/.test(a) || /forward|striker|wing/.test(n)) return 5;
+    return 3;
+  }
+  function sideOf(p) { var a = (p.pos || '').toUpperCase(); return /(^L|-L$)/.test(a) ? 0 : /(^R|-R$)/.test(a) ? 2 : 1; }
+  function shape(players, formation) {
+    var st = players.filter(function (p) { return p.starter; });
+    if (st.length !== 11) return null;
+    var gk = st.filter(function (p) { return lineOf(p) === 0; })[0] || st.slice().sort(function (a, b) { return a.place - b.place; })[0];
+    var rest = st.filter(function (p) { return p !== gk; }).sort(function (a, b) { return lineOf(a) - lineOf(b) || a.place - b.place; });
+    var sizes = String(formation || '').split('-').map(function (x) { return parseInt(x, 10); }).filter(function (x) { return x > 0; });
+    var lines = [];
+    if (sizes.length && sizes.reduce(function (a, b) { return a + b; }, 0) === 10) {
+      var i = 0; sizes.forEach(function (n) { lines.push(rest.slice(i, i + n)); i += n; });
+    } else {                                    // no formation: one line per kind of position
+      rest.forEach(function (p) { var k = lineOf(p); var l = lines.filter(function (x) { return lineOf(x[0]) === k; })[0]; if (l) l.push(p); else lines.push([p]); });
+    }
+    lines.forEach(function (l) { l.sort(function (a, b) { return sideOf(a) - sideOf(b) || a.place - b.place; }); });
+    return [[gk]].concat(lines);
+  }
+  function pitch(m, d) {
+    var home = shape(d.lineups.home, d.formation.home), away = shape(d.lineups.away, d.formation.away);
+    if (!home || !away) return '';
+    var dots = '';
+    [[home, 'home'], [away, 'away']].forEach(function (t) {
+      var lines = t[0], n = lines.length;
+      lines.forEach(function (line, li) {
+        var x = 5 + li * (36 / Math.max(1, n - 1));             // keeper at the goal, the last line short of halfway
+        line.forEach(function (p, pi) {
+          var y = (pi + 1) / (line.length + 1) * 100;            // a team's left side is at the top for the team attacking right
+          if (t[1] === 'away') { x = 100 - (5 + li * (36 / Math.max(1, n - 1))); y = 100 - y; }
+          dots += '<div class="pd ' + t[1] + '" style="left:' + x.toFixed(1) + '%;top:' + y.toFixed(1) + '%"><b>' + P.esc(p.num) + '</b><span>' + P.esc(p.last || p.name) + (p.off ? ' ↓' : '') + '</span></div>';
+        });
+      });
+    });
+    return '<div class="pitch-h"><span>' + P.esc(m.home.short) + (d.formation.home ? ' · ' + P.esc(d.formation.home) : '') + '</span><span>' + (d.formation.away ? P.esc(d.formation.away) + ' · ' : '') + P.esc(m.away.short) + '</span></div>' +
+      '<div class="pitch"><i class="pl-half"></i><i class="pl-circle"></i><i class="pl-box l"></i><i class="pl-box r"></i>' + dots + '</div>';
+  }
   function detailsRight(m, d) {
     if (!d || d.error) return '';
+    var pt = pitch(m, d);
+    if (pt) {
+      var bench = function (list) { return list.filter(function (p) { return !p.starter; }).map(function (p) { return '<div class="lu-r"><span class="lu-n">' + P.esc(p.num) + '</span><span class="lu-p">' + P.esc(p.name) + (p.on ? ' <i class="on">↑</i>' : '') + '</span><span class="lu-pos">' + P.esc(p.pos) + '</span></div>'; }).join(''); };
+      return pt + '<div class="lu"><div><div class="lu-h">Substitutes · ' + P.esc(m.home.short) + '</div>' + bench(d.lineups.home) + '</div><div><div class="lu-h">Substitutes · ' + P.esc(m.away.short) + '</div>' + bench(d.lineups.away) + '</div></div>';
+    }
     var col = function (list) {
       var st = list.filter(function (p) { return p.starter; }), bench = list.filter(function (p) { return !p.starter; });
       var line = function (p) { return '<div class="lu-r"><span class="lu-n">' + P.esc(p.num) + '</span><span class="lu-p">' + P.esc(p.name) + (p.off ? ' <i>↓</i>' : '') + (p.on ? ' <i class="on">↑</i>' : '') + '</span><span class="lu-pos">' + P.esc(p.pos) + '</span></div>'; };
       return st.map(line).join('') + (bench.length ? '<div class="lu-h">Substitutes</div>' + bench.map(line).join('') : '');
     };
-    if (!d.lineups.home.length && !d.lineups.away.length) return '<div class="f-empty">No line-ups for this match.</div>';
+    if (!d.lineups.home.length && !d.lineups.away.length) return '<div class="f-empty">' + (m.state === 'pre' ? 'Line-ups appear about an hour before kick-off.' : 'No line-ups for this match.') + '</div>';
     return '<div class="lu"><div><div class="f-h">' + P.esc(m.home.short) + '</div>' + col(d.lineups.home) + '</div><div><div class="f-h">' + P.esc(m.away.short) + '</div>' + col(d.lineups.away) + '</div></div>';
   }
   C.openDetails = function (m) {
@@ -173,9 +232,24 @@
     root().classList.add('full-on');
     renderFull();
     var f = C.full;
-    P.Football.summary(m).then(function (d) { if (C.full === f) { f.data = d; renderFull(); } },
-      function () { if (C.full === f) { f.data = { error: "Couldn't load this match's details" }; renderFull(); } });
+    var load = function (fresh) {
+      P.Football.summary(m, fresh).then(function (d) { if (C.full === f) { f.data = d; renderFull(); } },
+        function () { if (C.full === f && !f.data) { f.data = { error: "Couldn't load this match's details" }; renderFull(); } });
+    };
+    load(false);
+    // during the match, and in the last hours before it (line-ups), the page keeps itself up to date
+    f.timer = setInterval(function () {
+      if (C.full !== f) return;
+      var soon = m.state === 'pre' && m.date - Date.now() < 3 * 3600000;
+      if (m.state === 'in' || soon) load(true);
+    }, 30000);
   };
+  function okAction(m) {
+    if (m.state === 'post') return ['Highlights', function () { P.Highlights.open(m, null); }];
+    if (m.state === 'in') return ['Watch on beIN', function () { P.Apps.switchTo('hdmi:bein'); }];
+    if (/postpon|cancel/i.test(m.statusName)) return null;
+    return [P.Football.hasReminder(m) ? 'Remove reminder' : 'Remind me', function () { remind(m); renderFull(); }];
+  }
 
   function renderFull() {
     var f = C.full, F = P.Football, c = F.byKey[f.comp] || {}, box = P.$('#cFull');
@@ -184,20 +258,27 @@
       var m = f.m;
       var dhtml = '<div class="f-top"><h2 class="d-h">' + P.UI.crest(m.home, 'sm') + P.esc(m.home.short) + ' <b>' + F.centreText(m) + '</b> ' + P.esc(m.away.short) + P.UI.crest(m.away, 'sm') +
         '<small>' + P.esc(m.compName + ' · ' + F.statusText(m) + (m.venue ? ' · ' + m.venue : '')) + '</small></h2>' +
-        '<span class="f-keys"><span class="key">OK</span>Highlights · <span class="key">◀ ▶</span>Switch · <span class="key">▲ ▼</span>Scroll · <span class="key">Back</span>Close</span></div>' +
+        (okAction(m) ? '<span class="f-keys"><span class="key">OK</span>' + okAction(m)[0] + '</span>' : '') + '</div>' +
         '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0">' + detailsLeft(m, f.data) + '</section>' +
         '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-title">Line-ups</div>' + detailsRight(m, f.data) + '</section></div>';
-      if (box._html !== dhtml) { box._html = dhtml; box.innerHTML = dhtml; }
+      if (box._html !== dhtml) {   // a live update keeps where you've scrolled to
+        var d0 = P.$('#fc0') ? P.$('#fc0').scrollTop : 0, d1 = P.$('#fc1') ? P.$('#fc1').scrollTop : 0;
+        box._html = dhtml; box.innerHTML = dhtml;
+        P.$('#fc0').scrollTop = d0; P.$('#fc1').scrollTop = d1;
+      }
       return;
     }
     if (!box) { box = P.el('div', 'c-full'); box.id = 'cFull'; root().appendChild(box); }
     var html = '<div class="f-top"><h2>' + P.esc(c.name || '') + '</h2><span class="f-keys"><span class="key">◀ ▶</span>Switch · <span class="key">▲ ▼</span>Scroll · <span class="key">Back</span>Close</span></div>' +
       '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-title">Table</div>' + fullTable(f.comp, f.m) + '</section>' +
-      '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-title">Coming matches</div>' + fixtures(f.comp, f.m) + '</section></div>';
+      '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-title">Matches</div>' + fixtures(f.comp, f.m) + '</section></div>';
     if (box._html !== html) {
       var s0 = P.$('#fc0') ? P.$('#fc0').scrollTop : 0, s1 = P.$('#fc1') ? P.$('#fc1').scrollTop : 0;
       box._html = html; box.innerHTML = html;
       P.$('#fc0').scrollTop = s0; P.$('#fc1').scrollTop = s1;
+      // the first time the matches arrive: open at today, the latest results just above
+      var mk = P.$('#fToday');
+      if (mk && !f.placed) { f.placed = true; var c1 = P.$('#fc1'); c1.style.scrollBehavior = 'auto'; c1.scrollTop = Math.max(0, mk.offsetTop - c1.offsetTop - 200); c1.style.scrollBehavior = ''; }
     }
   }
   C.openFull = function () {
@@ -207,6 +288,7 @@
     renderFull();
   };
   function closeFull() {
+    if (C.full && C.full.timer) clearInterval(C.full.timer);
     C.full = null; root().classList.remove('full-on');
     var b = P.$('#cFull'); if (b) b.remove();
     paint();
@@ -219,11 +301,13 @@
     if (C.focusId) { var j = ms.findIndex(function (x) { return x.id === C.focusId; }); if (j >= 0) C.at = j; }
     if (C.at >= ms.length) C.at = Math.max(0, ms.length - 1);
     var focusM = ms[C.at];
-    var bar = '<div class="c-head"><button class="cbtn" data-b="0">' + P.icon('back') + 'Back</button><h1>Matches</h1><span class="grow"></span>' +
-      DAYS.map(function (d, i) { return '<button class="day' + (C.day === d[2] ? ' on' : '') + '" data-b="' + (i + 1) + '">' + d[1] + '</button>'; }).join('') + '</div>';
-    var body;
-    if (!F.ready) body = '<div class="c-empty">Loading matches…</div>';
-    else if (!ms.length) body = '<div class="c-empty">' + (F.error ? P.esc(F.error) + '. Check the internet connection.' : 'No matches ' + (C.day === 0 ? 'today' : C.day < 0 ? 'yesterday' : 'tomorrow') + ' in your competitions.') + '</div>';
+    var pills = '';
+    for (var o = -RANGE; o <= RANGE; o++) pills += '<button class="day' + (C.day === o ? ' on' : '') + '" data-b="' + (o + RANGE + 1) + '">' + dayLabel(o) + '</button>';
+    var bar = '<div class="c-head"><button class="cbtn" data-b="0">' + P.icon('back') + 'Back</button><h1>Matches</h1>' +
+      '<div class="c-days" id="cDays"><div class="c-dtrack" id="cDtrack">' + pills + '</div></div></div>';
+    var body, ds = F.dayState[C.day];
+    if (!F.ready || (ds && ds.loading && !ms.length)) body = '<div class="c-empty">Loading matches…</div>';
+    else if (!ms.length) body = '<div class="c-empty">' + (F.error && C.day >= -1 && C.day <= 1 ? P.esc(F.error) + '. Check the internet connection.' : 'No matches ' + (C.day === 0 ? 'today' : C.day === -1 ? 'yesterday' : C.day === 1 ? 'tomorrow' : 'on ' + dayLabel(C.day)) + ' in your competitions.') + '</div>';
     else {
       var idx = 0;
       body = F.byComp(ms).map(function (g) {
@@ -271,6 +355,18 @@
       if (top - y < 40) y = Math.max(0, top - 60);
       if (y !== track._y) { track._y = y; track.style.transform = 'translate3d(0,' + (-y) + 'px,0)'; }
     }
+    // the date strip slides to keep the focused (or chosen) day in view
+    var dt = P.$('#cDtrack'), dbox = P.$('#cDays');
+    if (dt && dbox) {
+      var pill = P.$('[data-b="' + (C.zone === 'bar' && C.bar > 0 ? C.bar : C.day + RANGE + 1) + '"]', dt);
+      if (pill) {
+        var x = dt._x == null ? pill.offsetLeft - dbox.clientWidth / 2 + pill.offsetWidth / 2 : dt._x, w = dbox.clientWidth;
+        if (pill.offsetLeft - x < 20) x = pill.offsetLeft - 20;
+        if (pill.offsetLeft + pill.offsetWidth - x > w - 20) x = pill.offsetLeft + pill.offsetWidth - w + 20;
+        x = Math.max(0, Math.min(x, dt.scrollWidth - w));
+        if (x !== dt._x) { dt._x = x; dt.style.transform = 'translate3d(' + (-x) + 'px,0,0)'; }
+      }
+    }
   }
 
   var layer = {
@@ -282,7 +378,7 @@
         if (k === 'back') { closeFull(); return; }
         if (k === 'left' || k === 'right') { C.full.col = k === 'left' ? 0 : 1; renderFull(); return; }
         if ((k === 'up' || k === 'down') && col) col.scrollTop += k === 'up' ? -300 : 300;
-        if (k === 'ok' && C.full.kind === 'details') P.Highlights.open(C.full.m, null);
+        if (k === 'ok' && C.full.kind === 'details') { var oa = okAction(C.full.m); if (oa) oa[1](); }
         return;
       }
       if (k === 'back') { if (C.zone === 'table') { C.zone = 'list'; paint(); return; } C.close(); return; }
@@ -293,15 +389,16 @@
       }
       if (C.zone === 'bar') {
         if (k === 'left') C.bar = Math.max(0, C.bar - 1);
-        if (k === 'right') C.bar = Math.min(3, C.bar + 1);
+        if (k === 'right') C.bar = Math.min(2 * RANGE + 1, C.bar + 1);
         if (k === 'down' && ms.length) { C.zone = 'list'; moveTo(0); return; }
         if (k === 'ok') {
           if (C.bar === 0) { C.close(); return; }
-          C.day = DAYS[C.bar - 1][2]; C.at = 0; C.focusId = null; C.render(); return;
+          C.day = C.bar - RANGE - 1; C.at = 0; C.focusId = null;
+          P.Football.loadDay(C.day); C.render(); return;
         }
         paint(); return;
       }
-      if (k === 'up') { if (C.at === 0) { C.zone = 'bar'; C.bar = C.day + 2; paint(); return; } moveTo(C.at - 1); return; }
+      if (k === 'up') { if (C.at === 0) { C.zone = 'bar'; C.bar = C.day + RANGE + 1; paint(); return; } moveTo(C.at - 1); return; }
       if (k === 'down') { moveTo(Math.min(ms.length - 1, C.at + 1)); return; }
       if (k === 'right') { if (P.$('#cSide .c-table')) { C.zone = 'table'; paint(); } return; }
       if (k === 'left') return;
@@ -311,12 +408,13 @@
   };
 
   C.open = function (matchId) {
-    C.open_ = true; C.day = 0; C.at = 0; C.zone = 'list'; C.bar = 2; C.focusId = null;
+    C.open_ = true; C.day = 0; C.at = 0; C.zone = 'list'; C.bar = RANGE + 1; C.focusId = null;
     if (matchId) {
       var m = P.Football.find(matchId);
       if (m) {
         C.day = Math.round((P.dayStart(m.date) - P.dayStart(new Date())) / 86400000);
-        if (C.day < -1 || C.day > 1) C.day = 0;
+        if (C.day < -RANGE || C.day > RANGE) C.day = 0;
+        P.Football.loadDay(C.day);
         var i = list().indexOf(m); if (i >= 0) { C.at = i; C.focusId = m.id; }
       }
     }
@@ -327,12 +425,14 @@
     if (Date.now() - P.Football.loadedAt > 120000) P.Football.refresh();
   };
   C.close = function () {
+    if (C.full && C.full.timer) clearInterval(C.full.timer);
     C.full = null; root().classList.remove('full-on');
     C.open_ = false; root().hidden = true; root().innerHTML = ''; root()._html = '';
     document.body.classList.remove('centre-on');
     P.UI.pop(layer);
   };
   C.isOpen = function () { return C.open_; };
+  C.remind = remind;
   C.list = function () { return list(); };
   P.bus.on('football', function () { if (C.open_) C.render(); });
   P.bus.on('football-side', function () { if (C.open_) C.render(); });

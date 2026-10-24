@@ -437,16 +437,25 @@
     var other = want.code === 'ara' ? { code: 'eng', name: 'English' } : { code: 'ara', name: 'Arabic' };
     st.search = { state: 'loading', items: [], lang: want.code, langName: want.name, other: other };
     st.pi = 0; renderPanel();
-    var mine = st;
-    get('/library/metadata/' + st.key + '/subtitles?language=' + want.code + '&hearingImpaired=0&forced=0').then(function (d) {
+    var mine = st, s = srv();
+    // Plex versions differ in how they want the question: try the forms the Plex apps use, keep the server's own words
+    var two = want.code === 'ara' ? 'ar' : 'en';
+    var forms = ['language=' + want.code + '&hearingImpaired=0&forced=0', 'language=' + two + '&hearingImpaired=0&forced=0', 'language=' + two, 'language=' + want.code];
+    var lastErr = '';
+    (function attempt(i) {
       if (st !== mine || !st.search) return;
-      var mc = (d && d.MediaContainer) || {};
-      st.search.items = (mc.Stream || mc.Metadata || []).slice(0, 12);
-      st.search.state = 'list'; renderPanel();
-    }).catch(function (e) {
-      if (st !== mine || !st.search) return;
-      st.search.state = 'error'; st.search.error = "Couldn't search: " + (e && e.message || 'your server refused'); renderPanel();
-    });
+      if (i >= forms.length) { st.search.state = 'error'; st.search.error = "Couldn't search: " + (lastErr || 'your server refused'); renderPanel(); return; }
+      fetch(s.uri + '/library/metadata/' + st.key + '/subtitles?' + forms[i], { headers: P.Plex.hdrs(s.token) }).then(function (r) {
+        return r.text().then(function (t) {
+          if (!r.ok) { lastErr = 'your server said ' + r.status + (t ? ' (' + t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) + ')' : ''); throw 0; }
+          var d = {}; try { d = JSON.parse(t); } catch (e) { lastErr = 'unexpected answer'; throw 0; }
+          if (st !== mine || !st.search) return;
+          var mc = d.MediaContainer || {};
+          st.search.items = (mc.Stream || mc.Metadata || []).slice(0, 12);
+          st.search.state = 'list'; renderPanel();
+        });
+      }).catch(function () { attempt(i + 1); });
+    })(0);
   }
   function pickOnline(x) {
     var S = st.search, mine = st, before = {};

@@ -151,7 +151,8 @@ async def install_routes(ctx, state):
         if u.path.endswith('/summary'):   # one match: stats, line-ups, events
             T = lambda a: {'id': TEAMS[a][0], 'displayName': TEAMS[a][1]}
             st = lambda a, pos, sh, on: {'team': T(a), 'statistics': [{'name': 'possessionPct', 'label': 'Possession', 'displayValue': pos}, {'name': 'totalShots', 'label': 'Shots', 'displayValue': sh}, {'name': 'shotsOnTarget', 'label': 'On target', 'displayValue': on}]}
-            ros = lambda a, side, names: {'team': T(a), 'homeAway': side, 'roster': [{'starter': i < 11, 'jersey': str(i + 1), 'athlete': {'displayName': n}, 'position': {'abbreviation': 'M'}} for i, n in enumerate(names)]}
+            POS = ['G', 'LB', 'CD-L', 'CD-R', 'RB', 'CM-L', 'CM', 'CM-R', 'LW', 'F', 'RW', 'M']
+            ros = lambda a, side, names: {'team': T(a), 'homeAway': side, 'formation': '4-3-3', 'roster': [{'starter': i < 11, 'jersey': str(i + 1), 'formationPlace': str(i + 1) if i < 11 else '0', 'athlete': {'displayName': n, 'lastName': n.split(' ')[-1]}, 'position': {'abbreviation': POS[min(i, 11)]}} for i, n in enumerate(names)]}
             await route.fulfill(json={'boxscore': {'teams': [st('QAD', '41', '9', '3'), st('AHL', '59', '15', '7')]},
                 'rosters': [ros('AHL', 'home', ['Mendy', 'Ibañez', 'Demiral', 'Kessie', 'Mahrez', 'Firmino', 'Toney', 'Galeno', 'Majrashi', 'Hindi', 'Abdulhamid', 'Saint-Maximin']),
                             ros('QAD', 'away', ['Koen', 'Nacho', 'Otavio', 'Aubameyang', 'Quiñones', 'Carrasco', 'Bonsu', 'Al Fatil', 'Bakshi', 'Kadesh', 'Alhamdan'])],
@@ -210,6 +211,14 @@ async def install_routes(ctx, state):
             {'videoRenderer': {'videoId': 'CLUBVID001', 'title': {'runs': [{'text': 'Al Ahli 2-1 Al Qadsiah | Highlights'}]}, 'ownerText': {'runs': [{'text': 'Al Ahli Saudi Club'}]}}}]}}]}}}}}
         await route.fulfill(body='<html><script>var ytInitialData = ' + json.dumps(yd) + ';</script></html>', content_type='text/html')
     await ctx.route('https://www.youtube.com/**', youtube)
+    # YouTube's embedded player, as a stand-in: plays, or refuses like a channel that blocks embedding (window.__ytBlock)
+    YT_JS = """window.YT = { Player: function (id, o) { var self = this; window.__yt = { id: o.videoId, state: -1 };
+      self.playVideo = function () { window.__yt.state = 1; o.events.onStateChange({ data: 1 }); }; self.pauseVideo = function () { window.__yt.state = 2; o.events.onStateChange({ data: 2 }); };
+      self.seekTo = function (t) { window.__yt.seek = t; }; self.getCurrentTime = function () { return 12; }; self.getDuration = function () { return 600; };
+      self.getPlayerState = function () { return window.__yt.state; }; self.destroy = function () { window.__yt.destroyed = true; };
+      setTimeout(function () { if (window.__ytBlock) o.events.onError({ data: 150 }); else o.events.onReady({ target: self }); }, 50); } };
+      setTimeout(function () { window.onYouTubeIframeAPIReady && window.onYouTubeIframeAPIReady(); }, 10);"""
+    await ctx.route('https://www.youtube.com/iframe_api', lambda r: r.fulfill(body=YT_JS, content_type='text/javascript'))
     await ctx.route('https://api.open-meteo.com/**', weather)
     await ctx.route('https://plex.tv/**', plextv)
     await ctx.route('http://192.168.1.20:32400/**', pms)
@@ -326,21 +335,49 @@ async def main():
         await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.state=='post');P.Centre.zone='list';P.Centre.at=i;P.Centre.focusId=ms[i].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
         await key('Enter'); await pg.wait_for_timeout(300)
         opts = await ev_("[...document.querySelectorAll('#dialog .mrow span')].map(e=>e.textContent)")
-        check('finished match: Watch highlights, Match details, Whole table', opts == ['Watch highlights', 'Match details', 'Whole table'], opts)
-        await key('Enter'); await pg.wait_for_timeout(1500)
+        check('finished match: Match details first, then Watch highlights, Whole table', opts == ['Match details', 'Watch highlights', 'Whole table'], opts)
+        await key('ArrowDown'); await key('Enter'); await pg.wait_for_timeout(1500)
         vids = await ev_("[...document.querySelectorAll('#dialog .mrow span')].map(e=>e.textContent)")
         check('highlights found, Thmanyah first, the full match from 2018 left out', len(vids) == 2 and vids[0].startswith('ملخص المباراة') and 'best match' in vids[0], vids)
         await shot('05c-highlights')
-        await key('Enter'); await pg.wait_for_timeout(300)
+        await key('Enter'); await pg.wait_for_timeout(600)
+        check('plays inside Plume (YouTube embedded player)', await ev_("P.UI.top().name == 'youtube' && window.__yt && window.__yt.id == 'THMANYAH01' && document.body.classList.contains('playing')"))
+        await shot('05e-highlights-player')
+        await key('Enter'); await pg.wait_for_timeout(150)
+        check('OK pauses it', await ev_("window.__yt.state == 2"))
+        await key('ArrowRight'); await pg.wait_for_timeout(100)
+        check('▶ jumps 10 seconds', await ev_("window.__yt.seek == 22"))
+        await key('Escape'); await pg.wait_for_timeout(300)
+        check('Back closes it', await ev_("P.UI.top().name == 'centre' && !document.getElementById('ytp') && !document.body.classList.contains('playing')"))
+        # a channel that allows its videos only on YouTube: the YouTube app opens instead
+        await ev_("window.__ytBlock = true; P.YT.open({id:'CLUBVID001', title:'Al Ahli 2-1 Al Qadsiah | Highlights', channel:'Al Ahli Saudi Club'})"); await pg.wait_for_timeout(600)
         calls = await ev_("JSON.stringify(window.__calls.filter(c=>c[0]=='launchAppControl').slice(-1))")
-        check('opens that video in the YouTube app', 'THMANYAH01' in calls, calls)
+        check('...a blocked one opens in the YouTube app', 'CLUBVID001' in calls and await ev_("P.UI.top().name") == 'centre', calls)
+        await ev_("window.__ytBlock = false")
         await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.state=='post');P.Centre.zone='list';P.Centre.at=i;P.Centre.focusId=ms[i].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
         await key('Enter'); await pg.wait_for_timeout(300)
-        await key('ArrowDown'); await key('Enter'); await pg.wait_for_timeout(900)
+        await key('Enter'); await pg.wait_for_timeout(900)
         det = await ev_("(document.getElementById('cFull')||{}).textContent||''")
         check('Match details: stats, timeline and line-ups', 'Possession' in det and 'Ivan Toney' in det and 'Substitutes' in det and 'Saint-Maximin' in det, det[:200])
+        dots = await ev_("[...document.querySelectorAll('#cFull .pd.home')].map(d=>[d.style.left,d.style.top,d.textContent])")
+        check('line-ups on a pitch: 11 a side, keeper at the goal, 4-3-3', len(dots) == 11 and dots[0][2].startswith('1') and float(dots[0][0][:-1]) < 8 and len(set(d[0] for d in dots)) == 4, dots[:4])
+        keys = await ev_("document.querySelector('#cFull .f-keys').textContent")
+        check('details header: only OK Highlights', keys == 'OKHighlights', keys)
         await shot('05d-match-details')
         await key('Escape'); await pg.wait_for_timeout(200)
+        # a live match: Live details first, then Watch on beIN
+        await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.state=='in');P.Centre.zone='list';P.Centre.at=i;P.Centre.focusId=ms[i].id;P.Centre.render();})()"); await pg.wait_for_timeout(200)
+        await key('Enter'); await pg.wait_for_timeout(300)
+        opts = await ev_("[...document.querySelectorAll('#dialog .mrow span')].map(e=>e.textContent)")
+        check('live match: Live details, Watch on beIN, Whole table', opts == ['Live details', 'Watch on beIN', 'Whole table'], opts)
+        await key('Escape'); await pg.wait_for_timeout(200)
+        # a month of days each way: far days load when opened
+        await ev_("P.Centre.zone='bar'; P.Centre.bar=31; P.Centre.render()")
+        for _ in range(10): await key('ArrowRight')
+        await key('Enter'); await pg.wait_for_timeout(1500)
+        far = await ev_("[P.Centre.day, document.querySelector('#cDtrack .day.on').textContent, document.getElementById('cList').textContent.slice(0,80)]")
+        check('date strip: ten days ahead opens and loads', far[0] == 10 and 'No matches on' in far[2], far)
+        await ev_("P.Centre.day=0; P.Centre.zone='list'; P.Centre.at=0; P.Centre.focusId=null; P.Centre.render()"); await pg.wait_for_timeout(300)
         # the table: Right focuses it, OK opens the whole table and the coming matches
         await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.comp=='spl');P.Centre.zone='list';P.Centre.at=i<0?0:i;P.Centre.focusId=ms[P.Centre.at].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
         await key('ArrowRight'); await pg.wait_for_timeout(200)
@@ -349,7 +386,7 @@ async def main():
         rows = await ev_("document.querySelectorAll('#fc0 .t-row').length")
         fx = await ev_("document.querySelectorAll('#fc1 .t-row').length")
         check('OK shows the whole table', rows >= 8, rows)
-        check('...and the coming matches', fx >= 1, await ev_("document.getElementById('fc1').textContent.slice(0,120)"))
+        check('...and the matches, results and coming in one list, opening at today', fx >= 1 and await ev_("!!document.getElementById('fToday') && document.querySelector('#fc1 .f-title').textContent == 'Matches'"), await ev_("document.getElementById('fc1').textContent.slice(0,120)"))
         await shot('05b-full-table')
         await key('ArrowRight'); await key('ArrowDown'); await pg.wait_for_timeout(200)
         check('Right moves to the coming matches', await ev_("document.getElementById('fc1').classList.contains('focus')"), await ev_("JSON.stringify([P.Centre.full && P.Centre.full.col, P.UI.top().name, !!document.getElementById('fc1')])"))

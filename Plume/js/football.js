@@ -167,6 +167,40 @@
     for (var d = liveOnly ? -1 : -2; d <= (liveOnly ? 0 : 1); d++) out.push(P.ymd(P.dayStart(now, d)));
     return out;
   }
+  /* matches are kept by id: a refresh replaces what it loaded and keeps the other days you've opened */
+  var fetchedDays = {};
+  function mergeInto(c, list) {
+    var fresh = {}; list.forEach(function (m) { fresh[m.id] = true; });
+    F.matches[c.k] = list.concat((F.matches[c.k] || []).filter(function (m) { return !fresh[m.id]; }));
+  }
+  function wantedComps() {
+    var comps = P.S.get('comps');
+    return COMPS.filter(function (c) { return comps[c.k] || c.k === 'spl'; });
+  }
+  /* any day, up to a month back or ahead (the matches page's date strip): loaded when you open it */
+  F.dayState = {};
+  F.loadDay = function (off) {
+    if (off >= -1 && off <= 1) return;                         // loaded with every refresh
+    var st = F.dayState[off];
+    if (st && (st.loading || Date.now() - st.at < (off < -1 ? 6 * 3600000 : 30 * 60000))) return;
+    F.dayState[off] = { loading: true, at: Date.now() };
+    var day = P.dayStart(new Date(), off);
+    var dates = [P.ymd(P.dayStart(day, -1)), P.ymd(day)];      // the feed's dates follow US time
+    Promise.all(wantedComps().map(function (c) {
+      return Promise.all(dates.map(function (d) {
+        if (fetchedDays[c.k + d] && Date.now() - fetchedDays[c.k + d] < 30 * 60000) return [];
+        return P.json(BASE + c.slug + '/scoreboard?dates=' + d, {}, 12000).then(function (x) { fetchedDays[c.k + d] = Date.now(); return x.events || []; }, function () { return []; });
+      })).then(function (lists) {
+        var seen = {}, list = [];
+        [].concat.apply([], lists).forEach(function (ev) { if (!seen[ev.id]) { seen[ev.id] = true; list.push(toMatch(ev, c)); } });
+        mergeInto(c, list);
+      });
+    })).then(function () {
+      F.dayState[off] = { loading: false, at: Date.now() };
+      F.rejudge(); P.bus.emit('football');
+    });
+  };
+
   function loadComp(c, liveOnly) {
     var days = feedDays(liveOnly), ok = 0;
     return Promise.all(days.map(function (day) {
@@ -176,11 +210,8 @@
       var seen = {}, list = [];
       [].concat.apply([], lists).forEach(function (ev) { if (!seen[ev.id]) { seen[ev.id] = true; list.push(toMatch(ev, c)); } });
       if (c.k === 'spl' || c.k === 'kc') list.forEach(function (m) { F.saudiIds[m.home.id] = true; F.saudiIds[m.away.id] = true; });
-      if (liveOnly && F.matches[c.k]) { // keep yesterday/tomorrow, replace what was refreshed
-        var fresh = {}; list.forEach(function (m) { fresh[m.id] = true; });
-        list = list.concat(F.matches[c.k].filter(function (m) { return !fresh[m.id]; }));
-      }
-      F.matches[c.k] = list;
+      days.forEach(function (d) { fetchedDays[c.k + d] = Date.now(); });
+      mergeInto(c, list);
     }).catch(function (e) { P.log('feed', c.slug, e.message); if (!F.matches[c.k]) F.matches[c.k] = []; throw e; });
   }
   function parseRows(entries) {
@@ -242,7 +273,7 @@
     var hit = fixCache[compKey];
     if (hit && (hit.loading || Date.now() - hit.at < 30 * 60000)) return hit.data;
     fixCache[compKey] = { loading: true, data: hit ? hit.data : null, at: Date.now() };
-    var days = []; for (var d = -1; d <= 13; d++) days.push(P.ymd(P.dayStart(new Date(), d)));
+    var days = []; for (var d = -15; d <= 14; d++) days.push(P.ymd(P.dayStart(new Date(), d)));
     Promise.all(days.map(function (day) {
       return P.json(BASE + c.slug + '/scoreboard?dates=' + day, {}, 12000).then(function (x) { return x.events || []; }, function () { return []; });
     })).then(function (lists) {
@@ -250,7 +281,7 @@
       [].concat.apply([], lists).forEach(function (ev) {
         if (seen[ev.id]) return; seen[ev.id] = true;
         var m = toMatch(ev, c);
-        if (m.state === 'in' || (m.state === 'pre' && m.date > now - 3 * 3600000)) out.push(m);
+        if (Math.abs(m.date - now) < 15 * 86400000) out.push(m);   // results and coming matches, two weeks each way
       });
       out.sort(function (a, b) { return a.date - b.date; });
       fixCache[compKey] = { data: out, at: Date.now() };
@@ -261,10 +292,10 @@
 
   /* one match in detail (OK on a finished match → Match details): stats, line-ups and the goals, cards and changes */
   var sumCache = {};
-  F.summary = function (m) {
+  F.summary = function (m, fresh) {
     var c = F.byKey[m.comp]; if (!c) return Promise.reject(new Error('unknown competition'));
     var hit = sumCache[m.id];
-    if (hit && Date.now() - hit.at < 10 * 60000) return Promise.resolve(hit.data);
+    if (!fresh && hit && Date.now() - hit.at < 10 * 60000) return Promise.resolve(hit.data);
     return P.json(BASE + c.slug + '/summary?event=' + m.id, {}, 12000).then(function (d) {
       var side = function (tid) { return String(tid) === m.home.id ? 'home' : 'away'; };
       var stats = {};
@@ -272,12 +303,15 @@
         var sd = side((t.team || {}).id);
         (t.statistics || []).forEach(function (x) { (stats[x.name] = stats[x.name] || { label: x.label || x.name })[sd] = x.displayValue; });
       });
-      var lineups = { home: [], away: [] };
+      var lineups = { home: [], away: [] }, formation = {};
       (d.rosters || []).forEach(function (r) {
         var sd = r.homeAway || side((r.team || {}).id);
+        formation[sd] = r.formation || '';
         (r.roster || []).forEach(function (p) {
-          (lineups[sd] = lineups[sd] || []).push({ name: ((p.athlete || {}).displayName) || '', num: p.jersey || '', pos: ((p.position || {}).abbreviation) || '',
-            starter: !!p.starter, off: !!p.subbedOut, on: !!p.subbedIn });
+          var a = p.athlete || {};
+          (lineups[sd] = lineups[sd] || []).push({ name: a.displayName || '', last: a.lastName || (a.displayName || '').split(' ').slice(-1)[0], num: p.jersey || '',
+            pos: ((p.position || {}).abbreviation) || '', posName: ((p.position || {}).displayName || (p.position || {}).name) || '',
+            place: +p.formationPlace || 0, starter: !!p.starter, off: !!p.subbedOut, on: !!p.subbedIn });
         });
       });
       var events = (d.keyEvents || []).map(function (e) {
@@ -287,7 +321,7 @@
         var who = (e.participants || []).map(function (x) { return (x.athlete || {}).displayName; }).filter(Boolean);
         return { kind: kind, min: (e.clock || {}).displayValue || '', side: side((e.team || {}).id), who: who, own: /own goal/i.test(ty + ' ' + (e.text || '')), pen: /penalty/i.test(ty) };
       }).filter(Boolean);
-      var data = { stats: stats, lineups: lineups, events: events };
+      var data = { stats: stats, lineups: lineups, formation: formation, events: events };
       sumCache[m.id] = { data: data, at: Date.now() };
       return data;
     });

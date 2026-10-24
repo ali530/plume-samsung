@@ -171,6 +171,18 @@
     else if (!document.hidden && Z.active) add(' · back at ' + hhmmss(new Date()));
   });
 
+  /* the same silent video without the sleep screen: while highlights play in Plume (Samsung's screen would come at 2 min) */
+  Z.keepAwake = function (on) {
+    if (!on) { if (loopOn && !Z.active) stopLoop(); return; }
+    if (loopOn) return;
+    if (!document.querySelector('object[type="application/avplayer"]')) {
+      var o = document.createElement('object'); o.type = 'application/avplayer'; o.id = 'awakeObj';
+      o.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none';
+      document.body.appendChild(o);
+    }
+    startLoop();
+  };
+
   Z.show = function () {
     if (Z.active) return;
     Z.active = true;
