@@ -86,7 +86,19 @@ async def main():
                 m['Media'][0]['Part'][0]['Stream'] = [{'streamType': 1, 'codec': 'h264'}, {'id': 12, 'streamType': 2, 'codec': 'eac3', 'languageCode': 'eng', 'displayTitle': 'English', 'selected': True},
                     {'id': 41, 'streamType': 3, 'codec': 'ass', 'languageCode': 'eng', 'displayTitle': 'English (ASS)', 'selected': True}]
                 m['Media'][0]['videoResolution'] = '1080'
+                if subsmode.get('added') and path.endswith('/403'):
+                    m['Media'][0]['Part'][0]['Stream'].append({'id': 55, 'key': '/library/streams/55', 'streamType': 3, 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT External)'})
                 await route.fulfill(json={'MediaContainer': {'Metadata': [m]}}); return
+            if path == '/video/:/transcode/universal/decision':
+                if subsmode['master'] == 'refuse':
+                    await route.fulfill(json={'MediaContainer': {'generalDecisionCode': 2000, 'generalDecisionText': 'Transcoding is disabled by the server admin'}}); return
+                await route.fulfill(json={'MediaContainer': {'generalDecisionCode': 1001, 'generalDecisionText': 'Direct Stream'}}); return
+            if path == '/library/metadata/403/subtitles' and route.request.method == 'GET':
+                await route.fulfill(json={'MediaContainer': {'Stream': [{'key': '/subtitles/os/777', 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT)', 'providerTitle': 'OpenSubtitles'}]}}); return
+            if path == '/library/metadata/403/subtitles' and route.request.method == 'PUT':
+                subsmode['added'] = True; await route.fulfill(status=200, body=''); return
+            if path == '/library/streams/55':
+                await route.fulfill(body='1\n00:00:00,000 --> 02:00:00,000\nمرحبا من الإنترنت\n', content_type='text/plain; charset=utf-8'); return
             if path == '/library/streams/41':
                 await route.fulfill(status=404, body=''); return
             if path == '/video/:/transcode/universal/start.m3u8':
@@ -260,7 +272,19 @@ async def main():
         av = (await ev('window.__av'))[n0:]; opens = [a[1] for a in av if a[0] == 'open']
         st_ = await ev("(function(){var s=P.Player.debug();return s?{t:s.t,how:s.subHow,top:P.UI.top().name,direct:s.plan.direct}:{top:P.UI.top().name}})()")
         check('refused twice: keeps playing, no error box', st_.get('top') == 'player' and st_.get('direct') and opens and 'file.mkv' in opens[-1], [st_, [o[-60:] for o in opens]])
-        check('...and says why in Info, step by step', "Couldn't show them" in (st_.get('how') or '') and 'repackaged stream: server said 400' in (st_.get('how') or '') and 'converted picture' in (st_.get('how') or ''), st_.get('how'))
+        check("...and says why in Info, in Plex's words", "Couldn't show them" in (st_.get('how') or '') and 'Plex says Transcoding is disabled by the server admin' in (st_.get('how') or ''), st_.get('how'))
+        # Search subtitles online: pick one, the server adds it as a file, Plume draws it
+        await ev("(function(){var s=P.Player.debug(); s.panel=true; document.getElementById('plPanel').classList.add('on');})()")
+        await ev("P.Player.layer.key('ok')")   # opens nothing: the panel needs its row; go through the rows instead
+        rows = await ev("[...document.querySelectorAll('#plPanel .pp-r span:first-child')].map(e=>e.textContent)")
+        idx = rows.index('Search subtitles online…') if 'Search subtitles online…' in rows else -1
+        check('gear panel offers Search subtitles online', idx >= 0, rows)
+        await ev("(function(){var s=P.Player.debug(); s.pi=%d;})()" % max(idx, 0)); await ev("P.Player.layer.key('ok')"); await pg.wait_for_timeout(600)
+        rows = await ev("[...document.querySelectorAll('#plPanel .pp-r span:first-child')].map(e=>e.textContent)")
+        check('search lists what Plex found', 'Arabic (SRT) · OpenSubtitles' in rows, rows)
+        await ev("(function(){var s=P.Player.debug(); s.pi=0;})()"); await ev("P.Player.layer.key('ok')"); await pg.wait_for_timeout(3500)
+        sub = await ev("document.getElementById('plSub').textContent")
+        check('picked one: added on the server and drawn by Plume', 'مرحبا' in sub and any(h.startswith('PUT /library/metadata/403/subtitles') for h in hits), [sub, await ev("P.Player.debug().subHow")])
         check('the clock stays right (no jumping)', 600000 <= st_.get('t', 0) <= 640000, st_.get('t'))
         await key('Escape', 200); await key('Escape', 900)
         # a remuxed stream that reports the title's own time: the clock still counts once

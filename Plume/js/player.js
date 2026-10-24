@@ -141,6 +141,22 @@
   /* The subtitle is inside the video, the server won't hand it over as a file and the TV can't read it (ASS, for example).
      1) ask the server to repackage the video (picture and sound copied, no quality loss) and send the subtitles as text;
      2) if that's refused, the server draws them into the picture (automatic, slightly lower picture quality). */
+  /* Before converting, ask the server what it will do, the way the Plex apps do. Its answer is in its own words. */
+  function decide(pl, at) {
+    var url = streamUrl(pl, st.key, at).replace('/start.m3u8?', '/decision?');
+    var s = srv();
+    return fetch(url, { headers: P.Plex.hdrs(s.token) }).then(function (r) {
+      return r.text().then(function (t) {
+        var d = null; try { d = JSON.parse(t); } catch (e) {}
+        var mc = (d && d.MediaContainer) || {};
+        var words = [mc.generalDecisionText, mc.transcodeDecisionText, mc.mdeDecisionText].filter(Boolean).join(' · ') || (r.ok ? '' : 'server said ' + r.status + (t && !d ? ': ' + t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) : ''));
+        var code = +mc.generalDecisionCode || 0, tcode = +mc.transcodeDecisionCode || 0;
+        // 2000s / 4000s: the server won't do it
+        return { ok: r.ok && code < 2000 && tcode < 4000 && !/disabled|not allowed|denied|forbidden|permission|refus/i.test(words), words: words };
+      });
+    }).catch(function (e) { return { ok: true, words: '' }; });   // can't ask: just try
+  }
+
   function fallback(sub, why) {
     if (!st || !sub || IMAGE_SUBS.test(sub.codec || '')) return;
     // what each step got back, for Info: the subtitle file, the repackaged stream, the converted picture
@@ -149,17 +165,39 @@
     var pl = st.plan;
     if (!st.triedRemux) { st.triedRemux = true; pl.remuxSubs = true; pl.forceBurn = false; st.subHow = 'Asking the server to send them as text'; restart({}); return; }
     if (!st.triedBurn) { st.triedBurn = true; pl.remuxSubs = false; pl.forceBurn = true; st.subHow = 'Drawn into the picture by the server'; restart({}); return; }
-    st.subHow = "Couldn't show them — " + st.subLog.join(' · ');
+    st.subHow = "Couldn't show them — " + st.subLog.join(' · ') + '. Try Search subtitles online in ⚙';
   }
 
   /* ---------- the remuxed stream: picture from its own playlist, subtitles from theirs (WebVTT pieces) ---------- */
   function startStream(at) {
     var pl = st.plan, url = streamUrl(pl, st.key, at);
     clearInterval(st.vttT); st.vttSeen = {};
+    // a subtitle step: ask the server first, so a refusal comes back in its own words instead of a failed stream
+    if ((pl.remuxSubs || pl.forceBurn) && !pl.decided) {
+      var mine0 = st, session0 = st.session;
+      root.classList.add('waiting');
+      decide(pl, at).then(function (d) {
+        if (st !== mine0 || st.session !== session0) return;
+        if (!d.ok) {
+          var step = pl.remuxSubs ? 'remux' : 'burn';
+          pl.remuxSubs = false; pl.forceBurn = false;
+          st.subLog = (st.subLog || []).concat((step === 'remux' ? 'repackaged stream' : 'converted picture') + ': Plex says ' + (d.words || 'no'));
+          if (step === 'remux' && !st.triedBurn) { st.triedBurn = true; pl.forceBurn = true; restart({}); return; }
+          st.plan.sub = null; restart({});
+          st.subHow = "Couldn't show them — " + st.subLog.join(' · ') + '. Try Search subtitles online in ⚙';
+          return;
+        }
+        pl.decided = true; startStream(at); pl.decided = false;
+      });
+      return;
+    }
     if (!pl.remuxSubs) { startAV(url, at); return; }
     var mine = st, session = st.session, s = srv();
     root.classList.add('waiting');
-    fetch(url, { headers: P.Plex.hdrs(s.token) }).then(function (r) { if (!r.ok) throw new Error('server said ' + r.status); return r.text(); }).then(function (master) {
+    fetch(url, { headers: P.Plex.hdrs(s.token) }).then(function (r) {
+      if (!r.ok) return r.text().then(function (t) { throw new Error('server said ' + r.status + (t ? ': ' + t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) : '')); });
+      return r.text();
+    }).then(function (master) {
       if (st !== mine || st.session !== session) return;
       var dir = url.split('?')[0].replace(/[^\/]*$/, '');
       var abs = function (u) {
@@ -303,9 +341,22 @@
   /* ---------- the gear panel: subtitles, audio, quality ---------- */
   function panelRows() {
     var pl = st.plan, rows = [];
+    if (st.search) {                       // the results of "Search subtitles online"
+      var S = st.search;
+      rows.push({ h: 'Subtitles online · ' + S.langName });
+      if (S.state === 'loading') rows.push({ k: 'none', label: 'Searching…' });
+      else if (S.state === 'saving') rows.push({ k: 'none', label: 'Adding it to your server…' });
+      else if (S.state === 'error') rows.push({ k: 'none', label: S.error });
+      else if (!S.items.length) rows.push({ k: 'none', label: 'Nothing found' });
+      else S.items.forEach(function (x, i) { rows.push({ k: 'pick', v: i, label: (x.displayTitle || x.title || x.languageTitle || 'Subtitles') + (x.providerTitle ? ' · ' + x.providerTitle : '') }); });
+      if (S.state !== 'loading' && S.state !== 'saving' && S.other) rows.push({ k: 'lang', label: 'Search in ' + S.other.name + ' instead' });
+      rows.push({ k: 'back', label: 'Back' });
+      return rows;
+    }
     rows.push({ h: 'Subtitles' }); rows.push({ k: 'sub', v: 0, label: 'Off', on: !pl.sub });
     var sl = labels(pl.subs, true);
     pl.subs.forEach(function (x, i) { rows.push({ k: 'sub', v: x.id, label: sl[i], on: x === pl.sub }); });
+    rows.push({ k: 'search', label: 'Search subtitles online…' });
     rows.push({ h: 'Audio' });
     var al = labels(pl.audios, false);
     pl.audios.forEach(function (x, i) { rows.push({ k: 'aud', v: x.id, label: al[i], on: x === pl.audio }); });
@@ -346,6 +397,11 @@
   function choosePanel() {
     var r = renderPanel()[st.pi]; if (!r) return;
     var pl = st.plan;
+    if (r.k === 'none') return;
+    if (r.k === 'search') { searchSubs(); return; }
+    if (r.k === 'back') { st.search = null; st.pi = 0; renderPanel(); return; }
+    if (r.k === 'lang') { searchSubs(st.search.other); return; }
+    if (r.k === 'pick') { pickOnline(st.search.items[r.v]); return; }
     if (r.k === 'sub') {
       put('/library/parts/' + pl.part.id + '?subtitleStreamID=' + r.v + '&allParts=1');
       var sub = pl.subs.filter(function (x) { return x.id === r.v; })[0] || null;
@@ -371,6 +427,64 @@
       if (r.v !== st.quality) { st.quality = r.v; restart({}); return; }
     }
     renderPanel();
+  }
+
+  /* ---------- Plex's own subtitle search (OpenSubtitles, like "Search" in the Plex app). The one you pick is saved on
+     your server as a separate file, so Plume draws it at full picture quality, without any conversion. ---------- */
+  var LANG = { ara: 'Arabic', eng: 'English' };
+  function searchSubs(lang) {
+    var want = lang || { code: 'ara', name: 'Arabic' };
+    var other = want.code === 'ara' ? { code: 'eng', name: 'English' } : { code: 'ara', name: 'Arabic' };
+    st.search = { state: 'loading', items: [], lang: want.code, langName: want.name, other: other };
+    st.pi = 0; renderPanel();
+    var mine = st;
+    get('/library/metadata/' + st.key + '/subtitles?language=' + want.code + '&hearingImpaired=0&forced=0').then(function (d) {
+      if (st !== mine || !st.search) return;
+      var mc = (d && d.MediaContainer) || {};
+      st.search.items = (mc.Stream || mc.Metadata || []).slice(0, 12);
+      st.search.state = 'list'; renderPanel();
+    }).catch(function (e) {
+      if (st !== mine || !st.search) return;
+      st.search.state = 'error'; st.search.error = "Couldn't search: " + (e && e.message || 'your server refused'); renderPanel();
+    });
+  }
+  function pickOnline(x) {
+    var S = st.search, mine = st, before = {};
+    st.plan.subs.forEach(function (s) { before[s.id] = true; });
+    S.state = 'saving'; renderPanel();
+    var q = 'key=' + encodeURIComponent(x.key || x.sourceKey || '') + '&codec=' + encodeURIComponent(x.codec || 'srt') + '&language=' + encodeURIComponent(x.languageCode || S.lang) +
+      '&hearingImpaired=' + (x.hearingImpaired ? 1 : 0) + '&forced=' + (x.forced ? 1 : 0) + (x.providerTitle ? '&providerTitle=' + encodeURIComponent(x.providerTitle) : '');
+    var s = srv();
+    fetch(s.uri + '/library/metadata/' + st.key + '/subtitles?' + q, { method: 'PUT', headers: P.Plex.hdrs(s.token) }).then(function (r) {
+      if (!r.ok) throw new Error('your server said ' + r.status);
+      // the server downloads it; look for the new subtitle a few times
+      var tries = 0;
+      return new Promise(function (done, fail) {
+        (function look() {
+          get('/library/metadata/' + mine.key).then(function (d) {
+            if (st !== mine) return;
+            var m = ((d.MediaContainer || {}).Metadata || [])[0] || {};
+            var part = ((((m.Media || [])[0] || {}).Part || [])[0]) || {};
+            var subs = (part.Stream || []).filter(function (z) { return z.streamType === 3; });
+            var fresh = subs.filter(function (z) { return !before[z.id] && z.key; })[0];
+            if (fresh) { done({ subs: subs, fresh: fresh }); return; }
+            if (++tries >= 8) { fail(new Error('the server didn\'t add it')); return; }
+            setTimeout(look, 2000);
+          }, fail);
+        })();
+      });
+    }).then(function (res) {
+      if (st !== mine) return;
+      st.plan.subs = res.subs; st.search = null;
+      put('/library/parts/' + st.plan.part.id + '?subtitleStreamID=' + res.fresh.id + '&allParts=1');
+      var special = st.plan.remuxSubs || st.plan.forceBurn;
+      st.plan.remuxSubs = false; st.plan.forceBurn = false; st.triedRemux = false; st.triedBurn = false; st.subLog = [];
+      if (special || st.plan.burn) restart({ sub: res.fresh }); else { st.plan.sub = res.fresh; loadSubs(res.fresh); }
+      st.pi = 0; renderPanel();
+    }).catch(function (e) {
+      if (st !== mine || !st.search) return;
+      S.state = 'error'; S.error = "Couldn't add it: " + (e && e.message || 'error'); renderPanel();
+    });
   }
 
   function renderInfo() {
@@ -507,7 +621,7 @@
     if (st.plan && st.plan.forceBurn) {   // the server won't draw them in either: play on without them
       st.subLog = (st.subLog || []).concat('converted picture: the TV couldn\'t play it (' + code + ')');
       st.plan.forceBurn = false; st.plan.sub = null; restart({});
-      st.subHow = "Couldn't show them — " + st.subLog.join(' · '); return;
+      st.subHow = "Couldn't show them — " + st.subLog.join(' · ') + '. Try Search subtitles online in ⚙'; return;
     }
     if (st.plan && st.plan.direct && !st.triedConvert) {   // the TV couldn't play the file as it is: let the server help once
       st.triedConvert = true; st.plan.convertAudio = true; restart({});
@@ -647,6 +761,7 @@
         if (k === 'up') st.pi = Math.max(0, st.pi - 1);
         if (k === 'down') st.pi = Math.min(n - 1, st.pi + 1);
         if (k === 'ok') { choosePanel(); return; }
+        if ((k === 'back' || k === 'left') && st.search) { st.search = null; st.pi = 0; renderPanel(); return; }
         if (k === 'back' || k === 'left') { st.panel = false; P.$('#plPanel').classList.remove('on'); show(true); paint(); return; }
         renderPanel(); return;
       }
