@@ -19,10 +19,16 @@
     returnToPlume: true,
     plexCopy: 'last',              // which version plays: last (the one you played last) | 4k | 1080 (same language only)
     plexPicks: {},
-    subOffsets: {},                // subtitle timing you set, per episode/film and subtitle (ms)                 // per title (Plex guid): the version you last played in Plume {key, at}
+    subOffsets: {},                // subtitle timing you set, per episode/film and subtitle (ms)
     folded: {},                    // rows folded away on the home screen: {cw: true, matches: true}
     highlightsIn: 'plume',         // where highlights play: plume (in Plume) | app (the YouTube app: your account, no ads)
     matchAlerts: true,             // kick-off, goals and full time of your teams' matches and reminded ones
+    alertWhat: { kickoff: true, goal: true, red: true, ht: false, sh: false, ft: true, pen: false },   // which alerts
+    alertWho: { mine: true, followed: true, big: false },   // which matches: your teams, followed/reminded, big matches
+    alertComps: {},                // every match of these competitions alerts: {epl: true}
+    alertOverFilms: false,         // a small alert in the corner over Plume's players (else they wait)
+    alertSecs: 10,
+    follows: [],                   // matches you follow: [{id, at}]
     autoNext: true,                // play the next episode after the countdown
     plex: null,                    // {token, user, server:{name, uri, token}}
     plexHidden: [],

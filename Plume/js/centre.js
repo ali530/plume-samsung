@@ -1,7 +1,7 @@
-/* The match centre (the football tile): a month of days each way (today first), matches grouped by competition,
+/* The match centre (the football tile): a week of days, 3 back and 3 ahead (today first), matches grouped by competition,
    details of the focused match, and its table. OK on a match: its details first, then beIN, highlights or a reminder. */
 (function () {
-  var RANGE = 30;                              // days back and ahead in the date strip
+  var RANGE = 3;                               // days back and ahead: a week with today in the middle
   var C = { day: 0, zone: 'list', bar: RANGE + 1, at: 0, open_: false };
   var root = function () { return P.$('#centre'); };
   function dayLabel(off) {
@@ -14,6 +14,11 @@
     P.UI.toast(on ? 'Reminder set · pops up 10 min before kick-off' : 'Reminder removed');
     C.render(); P.Home.renderStrip(); P.Home.renderMatchesRow();
   }
+  function follow(m) {
+    var on = P.Football.toggleFollow(m);
+    P.UI.toast(on ? 'Following · alerts for this match' + (P.S.get('matchAlerts') ? '' : ' (Match alerts are off in Settings)') : 'Stopped following');
+    C.render(); P.Home.renderStrip(); P.Home.renderMatchesRow();
+  }
   /* what OK does on a match: a menu, with the match's details first */
   C.act = function (m) {
     var F = P.Football, anchor = P.$('#centre .mline.focus') || P.$('.mcard.focus');
@@ -24,6 +29,8 @@
     P.UI.menu(anchor, m.home.short + ' ' + F.centreText(m) + ' ' + m.away.short, [
       { label: m.state === 'in' ? 'Live details' : 'Match details', icon: 'list', act: function () { if (!C.open_) C.open(m.id); C.openDetails(m); } },
       second,
+      m.state === 'post' || /postpon|cancel/i.test(m.statusName) ? null
+        : { label: F.isFollowed(m) ? 'Stop following' : 'Follow · alerts for this match', icon: 'bell', act: function () { follow(m); } },
       { label: 'Whole table', icon: 'grid', act: function () { if (!C.open_) C.open(m.id); C.sideComp = m.comp; C.openFull(); } }].filter(Boolean));
   };
   C.okLabel = function (m) {
@@ -335,9 +342,10 @@
       body = F.byComp(ms).map(function (g) {
         return '<div class="grp"><div class="g-name">' + P.esc(g.comp.name) + '</div>' + g.list.map(function (m) {
           var i = ms.indexOf(m); idx++;
-          var st = m.state === 'in' ? '<span class="live"><i class="dot"></i>' + P.esc(F.statusText(m)) + '</span>'
+          var bell = F.isFollowed(m) || F.hasReminder(m) ? P.icon('bell') : '';
+          var st = m.state === 'in' ? '<span class="live">' + (bell || '<i class="dot"></i>') + P.esc(F.statusText(m)) + '</span>'
             : m.state === 'post' ? '<span>' + (F.statusText(m) === 'Full time' ? 'FT' : P.esc(F.statusText(m))) + '</span>'
-            : '<span>' + (F.hasReminder(m) ? P.icon('bell') : m.big ? P.icon('star') : '') + P.hhmm(m.date) + '</span>';
+            : '<span>' + (bell || (m.big ? P.icon('star') : '')) + P.hhmm(m.date) + '</span>';
           return '<div class="mline' + (m.fav ? ' fav' : '') + '" data-m="' + i + '"><span class="st">' + st + '</span>' +
             P.UI.crest(m.home, 'sm') + '<span class="tn' + (P.Football.isFavName(m.home.name) ? ' me' : '') + '">' + P.esc(m.home.name) + '</span>' +
             '<b class="sc">' + (m.state === 'pre' ? '–' : F.centreText(m)) + '</b>' +

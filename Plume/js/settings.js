@@ -35,7 +35,7 @@
         plex ? { label: 'Next episode', value: function () { return get('autoNext') ? 'Plays automatically' : 'Ask first'; }, act: function () { set('autoNext', !get('autoNext')); } } : null,
         { section: 'Football' },
         { label: 'Competitions', value: function () { var c = get('comps'); return Object.keys(c).filter(function (k) { return c[k]; }).length + ' of ' + F.COMPS.length; }, open: 'comps' },
-        { label: 'Match alerts', value: function () { return ''; }, toggle: function () { return get('matchAlerts'); }, act: function () { set('matchAlerts', !get('matchAlerts')); }, note: "Kick-off, goals and full time of your teams' matches and the ones you set a reminder for, also over the PS5 and beIN" },
+        { label: 'Match alerts', value: function () { return get('matchAlerts') ? 'On' : 'Off'; }, open: 'alerts' },
         { label: 'Highlights play in', value: function () { return get('highlightsIn') === 'plume' ? 'Plume' : 'YouTube app'; }, act: function () { set('highlightsIn', get('highlightsIn') === 'plume' ? 'app' : 'plume'); } },
         { label: 'YouTube key for highlights', value: function () { return P.Highlights.key ? 'Set' : 'Not set · plain search'; }, act: function () {} },
         { label: 'Your teams', value: function () { return get('favs').length ? get('favs').join(', ') : 'None'; }, open: 'favs' },
@@ -50,7 +50,7 @@
         { section: 'Weather' },
         { label: 'City', value: function () { return get('city'); }, open: 'city' },
         { section: 'About' },
-        { label: 'Plume for Samsung', value: function () { return 'Version 2.9.2'; }, act: function () {} }
+        { label: 'Plume for Samsung', value: function () { return 'Version 2.10'; }, act: function () {} }
       ].filter(Boolean) },
 
       row: { title: 'Apps in row', rows: P.Apps.all().map(function (it) {
@@ -62,6 +62,30 @@
         return { label: c.name, sub: c.mode === 'saudi' ? 'Matches with Saudi clubs' : c.mode === 'ksa' ? 'Saudi Arabia only' : '',
           toggle: function () { return get('comps')[c.k] !== false; },
           act: function () { var x = JSON.parse(JSON.stringify(get('comps'))); x[c.k] = !(x[c.k] !== false); set('comps', x); } };
+      }) },
+
+      alerts: { title: 'Match alerts', note: 'Pop-ups over anything Plume shows, the PS5 and beIN included. To follow any match, even a live one: OK on it in Matches → Follow.', rows: [
+        { label: 'Match alerts', toggle: function () { return get('matchAlerts'); }, act: function () { set('matchAlerts', !get('matchAlerts')); } },
+        { section: 'When' }].concat(
+        [['kickoff', 'Kick-off'], ['goal', 'Goals', 'With the scorer and minute'], ['red', 'Red cards'], ['ht', 'Half time', 'With the score'],
+         ['sh', 'Second half starts'], ['ft', 'Full time'], ['pen', 'Penalty missed or saved', 'When ESPN reports it']].map(function (w) {
+          return { label: w[1], sub: w[2] || '', toggle: function () { return !!get('alertWhat')[w[0]]; },
+            act: function () { var x = JSON.parse(JSON.stringify(get('alertWhat'))); x[w[0]] = !x[w[0]]; set('alertWhat', x); } };
+        }),
+        [{ section: 'Which matches' }],
+        [['mine', 'Your teams'], ['followed', 'Matches you follow or set a reminder for'], ['big', 'All big matches', 'The ones with a star: derbies, top of the table, big Champions League nights']].map(function (w) {
+          return { label: w[1], sub: w[2] || '', toggle: function () { return !!get('alertWho')[w[0]]; },
+            act: function () { var x = JSON.parse(JSON.stringify(get('alertWho'))); x[w[0]] = !x[w[0]]; set('alertWho', x); } };
+        }),
+        [{ label: 'Every match of…', value: function () { var c = get('alertComps'), n = Object.keys(c).filter(function (k) { return c[k]; });
+            return n.length ? n.map(function (k) { return (F.byKey[k] || {}).short || k; }).join(', ') : 'None'; }, open: 'alertComps' },
+         { section: 'Where' },
+         { label: 'Over films and shows in Plume', sub: 'Small, in the bottom corner. Off: they wait until you stop', toggle: function () { return get('alertOverFilms'); }, act: function () { set('alertOverFilms', !get('alertOverFilms')); } },
+         { label: 'Show each alert for', value: function () { return get('alertSecs') + ' seconds'; }, act: cycle('alertSecs', [6, 10, 15]) }]) },
+
+      alertComps: { title: 'Every match of…', note: 'Every match Plume shows for these competitions gives alerts, whoever plays. A busy day means many pop-ups.', rows: F.COMPS.map(function (c) {
+        return { label: c.name, toggle: function () { return !!get('alertComps')[c.k]; },
+          act: function () { var x = JSON.parse(JSON.stringify(get('alertComps'))); x[c.k] = !x[c.k]; set('alertComps', x); } };
       }) },
 
       favs: { title: 'Your teams', note: 'Their matches always show, come first, and stay on the strip while live.', rows: F.teamChoices().map(function (n) {

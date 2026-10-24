@@ -456,6 +456,15 @@ body.playing #wall, body.playing #home, body.playing .overlay, body.playing .pan
 .al-m b { font-size: 40px; font-weight: 600; padding: 0 8px; font-variant-numeric: tabular-nums; }
 .al-l { font-size: 21px; color: rgba(245, 245, 245, .65); }
 body.input-on .alert { visibility: visible; }
+.al-k.red { color: #FF8A80; }
+.al-k .card { width: 16px; height: 22px; border-radius: 3px; background: #E5484D; display: inline-block; }
+/* over a film: smaller, bottom corner, so it doesn't cover the picture */
+.alert.mini { top: auto; bottom: 40px; min-width: 0; padding: 14px 20px 12px; border-radius: 20px; transform: translateY(24px); background: rgba(14, 15, 17, .8); }
+.alert.mini.on { transform: none; }
+.alert.mini .al-k { font-size: 17px; }
+.alert.mini .al-m { font-size: 24px; gap: 10px; margin: 6px 0 4px; }
+.alert.mini .al-m b { font-size: 28px; }
+.alert.mini .al-l { font-size: 16px; }
 
 /* ---------- a show's seasons and episodes ---------- */
 .sh-tabs { display: flex; gap: 14px; margin-top: 30px; flex-wrap: nowrap; overflow: hidden; padding: 8px 6px; margin-left: -6px; }
@@ -511,9 +520,9 @@ body.input-on .alert { visibility: visible; }
 .lu-h { font-size: 19px; color: var(--fg2); margin: 18px 0 4px; }
 
 /* ---------- match centre: a month of days each way ---------- */
-.c-days { flex: 1; min-width: 0; overflow: hidden; margin-left: 30px; padding: 10px 0; -webkit-mask-image: linear-gradient(90deg, transparent, #000 60px, #000 calc(100% - 60px), transparent); mask-image: linear-gradient(90deg, transparent, #000 60px, #000 calc(100% - 60px), transparent); }
+.c-days { flex: 1; min-width: 0; overflow: hidden; margin-left: 30px; padding: 10px 0; -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
 .c-dtrack { display: flex; gap: 10px; transition: transform .2s ease-out; will-change: transform; width: max-content; }
-.c-dtrack .day { flex: none; white-space: nowrap; }
+.c-dtrack .day { flex: none; white-space: nowrap; padding: 0 24px; }
 
 /* ---------- match details: before the match, and line-ups on a pitch ---------- */
 .pre-ko { font-size: 40px; font-weight: 300; margin: 6px 0 4px; }

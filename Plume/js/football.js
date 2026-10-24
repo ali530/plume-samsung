@@ -70,19 +70,22 @@
     var a = cs.filter(function (c) { return c.homeAway === 'away'; })[0] || cs[1] || {};
     var st = (ev.status || cp.status || {}), ty = st.type || {};
     var home = side(h), away = side(a);
-    var goals = [];
+    var goals = [], reds = [], pmiss = [];
     (cp.details || []).forEach(function (d) {
-      if (!d.scoringPlay) return;
       var who = (d.athletesInvolved || [])[0];
       var name = who ? (who.shortName || who.displayName || '') : '';
       var tid = String((d.team || {}).id || '');
-      goals.push({ side: tid === home.id ? 'home' : 'away', who: name.split(' ').slice(-1)[0] || name, min: (d.clock || {}).displayValue || '', og: !!d.ownGoal, pen: !!d.penaltyKick });
+      var ev = { side: tid === home.id ? 'home' : 'away', who: name.split(' ').slice(-1)[0] || name, min: (d.clock || {}).displayValue || '' };
+      var ty = ((d.type || {}).text || '');
+      if (d.scoringPlay) { ev.og = !!d.ownGoal; ev.pen = !!d.penaltyKick; goals.push(ev); }
+      else if (d.redCard || /red card/i.test(ty)) reds.push(ev);
+      else if (/penalty/i.test(ty) && /miss|saved/i.test(ty)) { ev.saved = /saved/i.test(ty); pmiss.push(ev); }
     });
     var m = {
       id: String(ev.id), comp: comp.k, compName: comp.name, compShort: comp.short, date: new Date(ev.date),
       state: ty.state || 'pre', completed: !!ty.completed, statusName: ty.name || '', detail: ty.shortDetail || ty.detail || '',
       clock: st.displayClock || '', home: home, away: away, venue: (cp.venue || {}).fullName || '',
-      stage: (ev.season || {}).slug || '', goals: goals
+      stage: (ev.season || {}).slug || '', goals: goals, reds: reds, pmiss: pmiss
     };
     return m;
   }
@@ -177,7 +180,7 @@
     var comps = P.S.get('comps');
     return COMPS.filter(function (c) { return comps[c.k] || c.k === 'spl'; });
   }
-  /* any day, up to a month back or ahead (the matches page's date strip): loaded when you open it */
+  /* any day in the matches page's week (the matches page's date strip): loaded when you open it */
   F.dayState = {};
   F.loadDay = function (off) {
     if (off >= -1 && off <= 1) return;                         // loaded with every refresh
@@ -371,6 +374,25 @@
     EXTRA_TEAMS.forEach(function (n) { if (names.indexOf(n) < 0) names.push(n); });
     P.S.get('favs').forEach(function (n) { if (names.indexOf(n) < 0) names.push(n); });
     return names;
+  };
+
+  /* ---------- following a match (alerts for it, also once it's started) ---------- */
+  F.isFollowed = function (m) { return P.S.get('follows').some(function (r) { return r.id === m.id; }); };
+  F.toggleFollow = function (m) {
+    var now = Date.now();
+    var list = P.S.get('follows').filter(function (r) { return r.id !== m.id && now - r.at < 5 * 3600000; });   // old ones go
+    var on = !F.isFollowed(m);
+    if (on) list.push({ id: m.id, at: +m.date });
+    P.S.set('follows', list);
+    return on;
+  };
+  /* does this match give alerts? */
+  F.alerting = function (m) {
+    var w = P.S.get('alertWho');
+    if (w.mine && m.fav) return true;
+    if (w.followed && (F.isFollowed(m) || F.hasReminder(m))) return true;
+    if (w.big && m.big) return true;
+    return !!P.S.get('alertComps')[m.comp];
   };
 
   /* ---------- reminders (10 minutes before kick-off, while Plume is on screen) ---------- */
