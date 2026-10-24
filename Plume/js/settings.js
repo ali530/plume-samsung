@@ -50,7 +50,7 @@
         { section: 'Weather' },
         { label: 'City', value: function () { return get('city'); }, open: 'city' },
         { section: 'About' },
-        { label: 'Plume for Samsung', value: function () { return 'Version 2.10'; }, act: function () {} }
+        { label: 'Plume for Samsung', value: function () { return 'Version 2.10.1'; }, act: function () {} }
       ].filter(Boolean) },
 
       row: { title: 'Apps in row', rows: P.Apps.all().map(function (it) {

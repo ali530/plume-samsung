@@ -9,7 +9,7 @@
   function watched(m) { return P.Football.alerting(m); }
   A.watchedLive = function () {
     var now = Date.now();
-    return P.Football.day(0).some(function (m) {
+    return P.Football.day(0).concat(P.Football.day(-1)).some(function (m) {
       return watched(m) && (m.state === 'in' || (m.state === 'pre' && m.date - now < 5 * 60000 && now - m.date < 3 * 3600000));
     });
   };

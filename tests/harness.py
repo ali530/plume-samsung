@@ -498,6 +498,13 @@ async def main():
         txt = await fresh_alert("_om.home.score=String((+_om.home.score||0)+1); _om.goals.push({side:'home',who:'Kane',min:\"70'\"}); P.Alerts.check();")
         check('over a film: small alert in the corner', 'Kane' in txt and await ev_("document.getElementById('alert').classList.contains('mini')"), txt)
         await shot('09e-alert-over-film')
+        # while a film plays, live scores still refresh for alerting matches (only with alerts over films on)
+        calls = await ev_("""(function(){var F=P.Football,n=0,orig=F.refresh;F.refresh=function(){n++;return Promise.resolve();};
+            P.Football.toggleFollow(_om); P.footballLoop.reset(); P.footballLoop(); var a=n; P.footballLoop.reset();
+            P.S.set('alertOverFilms', false); P.footballLoop(); P.S.set('alertOverFilms', true); var b=n;
+            F.refresh=orig; P.Football.toggleFollow(_om); return [a,b];})()""")
+        check('during a film: live scores keep refreshing (only with over-films on)', calls == [1, 1], calls)
+        check('corner alert sits above the Plex player', await ev_("+getComputedStyle(document.getElementById('alert')).zIndex > 30"))
         await ev_("document.body.classList.remove('playing'); P.Alerts.queue=[]; P.Alerts.showing=false; document.getElementById('alert').classList.remove('on')")
         await ev_("P.Settings.open(); P.Settings.page='alerts'; P.Settings.at=0; P.Settings.render()"); await pg.wait_for_timeout(500)
         labs = await ev_("[...document.querySelectorAll('#settings .s-row .lab')].map(e=>e.childNodes[0].textContent)")

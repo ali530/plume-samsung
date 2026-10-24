@@ -60,8 +60,13 @@
   /* ---------- schedule ---------- */
   var fullAt = Date.now(), liveAt = 0;
   function footballLoop() {
-    if (document.hidden || document.body.classList.contains('playing')) return;   // nothing to refresh while you watch
+    if (document.hidden) return;
     var F = P.Football, now = Date.now();
+    // while you watch a film in Plume: only the live scores of matches that alert you, and only if alerts may show over films
+    if (document.body.classList.contains('playing')) {
+      if (P.S.get('matchAlerts') && P.S.get('alertOverFilms') && F.ready && P.Alerts.watchedLive() && now - liveAt >= 25000) { liveAt = now; F.refresh(true); }
+      return;
+    }
     if (now - fullAt >= 15 * 60000) { fullAt = now; liveAt = now; F.refresh(false); return; }
     // live scores every minute; every 25 s while one of your matches is on, so alerts come quickly
     var gap = P.S.get('matchAlerts') && P.Alerts.watchedLive() ? 25000 : 55000;
@@ -77,6 +82,8 @@
   }
 
   P.checkReminders = reminderLoop;
+  P.footballLoop = footballLoop;
+  footballLoop.reset = function () { liveAt = 0; };   // for tests
 
   function start() {
     P.TV.registerKeys();

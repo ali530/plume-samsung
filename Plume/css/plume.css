@@ -459,7 +459,7 @@ body.input-on .alert { visibility: visible; }
 .al-k.red { color: #FF8A80; }
 .al-k .card { width: 16px; height: 22px; border-radius: 3px; background: #E5484D; display: inline-block; }
 /* over a film: smaller, bottom corner, so it doesn't cover the picture */
-.alert.mini { top: auto; bottom: 40px; min-width: 0; padding: 14px 20px 12px; border-radius: 20px; transform: translateY(24px); background: rgba(14, 15, 17, .8); }
+.alert.mini { z-index: 40; top: auto; bottom: 40px; min-width: 0; padding: 14px 20px 12px; border-radius: 20px; transform: translateY(24px); background: rgba(14, 15, 17, .8); }
 .alert.mini.on { transform: none; }
 .alert.mini .al-k { font-size: 17px; }
 .alert.mini .al-m { font-size: 24px; gap: 10px; margin: 6px 0 4px; }
