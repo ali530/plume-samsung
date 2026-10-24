@@ -349,11 +349,15 @@
       if (S.state === 'loading') rows.push({ k: 'none', label: 'Searching…' });
       else if (S.state === 'saving') rows.push({ k: 'none', label: 'Adding it to your server…' });
       else if (S.state === 'error') rows.push({ k: 'none', label: S.error });
-      else if (!S.items.length) rows.push({ k: 'none', label: 'Nothing found' });
-      else S.items.forEach(function (x, i) {
-        var name = x.title && x.title !== x.displayTitle ? x.title : (x.displayTitle || x.languageTitle || 'Subtitles');
-        rows.push({ k: 'pick', v: i, label: (+x.perfectMatch ? '✓ Made for your file · ' : '') + name + (x.providerTitle ? ' · ' + x.providerTitle : '') });
-      });
+      else {
+        var list = S.showAll ? S.items.concat(S.others || []) : S.items;
+        if (!list.length) rows.push({ k: 'none', label: 'Nothing found for ' + (S.what || 'this title') });
+        list.forEach(function (x, i) {
+          var name = x.title && x.title !== x.displayTitle ? x.title : (x.displayTitle || x.languageTitle || 'Subtitles');
+          rows.push({ k: 'pick', v: i, label: (x._ep ? '✓ This episode · ' : +x.perfectMatch ? '✓ Made for your file · ' : '') + name + (x.providerTitle ? ' · ' + x.providerTitle : '') });
+        });
+        if (!S.showAll && S.others && S.others.length) rows.push({ k: 'all', label: 'Show all results (' + S.others.length + ' more)' });
+      }
       if (S.state !== 'loading' && S.state !== 'saving' && S.other) rows.push({ k: 'lang', label: 'Search in ' + S.other.name + ' instead' });
       rows.push({ k: 'back', label: 'Back' });
       return rows;
@@ -420,7 +424,8 @@
     if (r.k === 'search') { searchSubs(); return; }
     if (r.k === 'back') { st.search = null; st.pi = 0; renderPanel(); return; }
     if (r.k === 'lang') { searchSubs(st.search.other); return; }
-    if (r.k === 'pick') { pickOnline(st.search.items[r.v]); return; }
+    if (r.k === 'all') { st.search.showAll = true; renderPanel(); return; }
+    if (r.k === 'pick') { pickOnline((st.search.showAll ? st.search.items.concat(st.search.others || []) : st.search.items)[r.v]); return; }
     if (r.k === 'sub') {
       put('/library/parts/' + pl.part.id + '?subtitleStreamID=' + r.v + '&allParts=1');
       var sub = pl.subs.filter(function (x) { return x.id === r.v; })[0] || null;
@@ -471,9 +476,21 @@
           if (st !== mine || !st.search) return;
           var mc = d.MediaContainer || {};
           var items = (mc.Stream || mc.Metadata || []);
-          // the ones made for exactly your file first (Plex marks them), then by Plex's score
-          items.sort(function (a, b) { return (+(b.perfectMatch || 0) - +(a.perfectMatch || 0)) || ((+b.score || 0) - (+a.score || 0)); });
-          st.search.items = items.slice(0, 12);
+          // Your server's search matches loosely ("Black Torch" brings "Black Clover"). Keep the ones whose name has the
+          // show's (or film's) title; the right episode first, then the ones Plex made for your file, then Plex's score.
+          var meta = st.meta || {}, norm = function (t) { return ' ' + String(t || '').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ').trim() + ' '; };
+          var words = norm(meta.grandparentTitle || meta.title).trim().split(' ').filter(function (w) { return w.length > 1 && !/^(the|a|an|of|and)$/.test(w); });
+          var ep = meta.type === 'episode' ? new RegExp('s0*' + meta.parentIndex + '\\s*e0*' + meta.index + '(?!\\d)|(^|\\D)' + meta.parentIndex + 'x0*' + meta.index + '(?!\\d)') : null;
+          var named = items.some(function (x) { return x.title || x.fileName; });
+          items.forEach(function (x) {
+            var n = norm((x.title || '') + ' ' + (x.fileName || ''));
+            x._ok = !named || !words.length || words.every(function (w) { return n.indexOf(' ' + w + ' ') >= 0; });
+            x._ep = !!(ep && ep.test(n.replace(/ /g, '')) || ep && ep.test(n));
+          });
+          items.sort(function (a, b) { return (b._ep - a._ep) || (+(b.perfectMatch || 0) - +(a.perfectMatch || 0)) || ((+b.score || 0) - (+a.score || 0)); });
+          st.search.items = items.filter(function (x) { return x._ok; }).slice(0, 12);
+          st.search.others = items.filter(function (x) { return !x._ok; }).slice(0, 20);
+          st.search.what = (meta.grandparentTitle || meta.title || '') + (meta.type === 'episode' ? ' S' + meta.parentIndex + ' E' + meta.index : '');
           st.search.state = 'list'; renderPanel();
         });
       }).catch(function () { attempt(i + 1); });

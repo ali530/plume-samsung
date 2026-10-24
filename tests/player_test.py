@@ -94,8 +94,11 @@ async def main():
                     await route.fulfill(json={'MediaContainer': {'generalDecisionCode': 2000, 'generalDecisionText': 'Transcoding is disabled by the server admin'}}); return
                 await route.fulfill(json={'MediaContainer': {'generalDecisionCode': 1001, 'generalDecisionText': 'Direct Stream'}}); return
             if path == '/library/metadata/403/subtitles' and route.request.method == 'GET':
-                await route.fulfill(json={'MediaContainer': {'Stream': [{'key': '/subtitles/os/111', 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT)', 'title': 'Other.Release.WEB', 'providerTitle': 'OpenSubtitles', 'score': '40'},
-                    {'key': '/subtitles/os/777', 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT)', 'providerTitle': 'OpenSubtitles', 'perfectMatch': '1', 'score': '90'}]}}); return
+                # like your server: loose matches, other shows mixed in
+                await route.fulfill(json={'MediaContainer': {'Stream': [
+                    {'key': '/subtitles/os/111', 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT)', 'title': 'Black.Clover.S01E01.1080p', 'providerTitle': 'OpenSubtitles', 'score': '95', 'perfectMatch': '1'},
+                    {'key': '/subtitles/os/222', 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT)', 'title': 'Harbour.Lights.S01E05.WEB', 'providerTitle': 'OpenSubtitles', 'score': '80'},
+                    {'key': '/subtitles/os/777', 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT)', 'title': 'Harbour.Lights.S01E01.WEB-DL', 'providerTitle': 'OpenSubtitles', 'score': '60'}]}}); return
             if path == '/library/metadata/403/subtitles' and route.request.method == 'PUT':
                 subsmode['added'] = True; await route.fulfill(status=200, body=''); return
             if path == '/library/streams/55':
@@ -282,7 +285,7 @@ async def main():
         check('gear panel offers Search subtitles online', idx >= 0, rows)
         await ev("(function(){var s=P.Player.debug(); s.pi=%d;})()" % max(idx, 0)); await ev("P.Player.layer.key('ok')"); await pg.wait_for_timeout(600)
         rows = await ev("[...document.querySelectorAll('#plPanel .pp-r span:first-child')].map(e=>e.textContent)")
-        check('search lists what Plex found, the one made for your file first', rows[0] == '✓ Made for your file · Arabic (SRT) · OpenSubtitles' and 'Other.Release.WEB · OpenSubtitles' in rows, rows)
+        check('search: only this show, this episode first, other shows behind "Show all results"', rows[0] == '✓ This episode · Harbour.Lights.S01E01.WEB-DL · OpenSubtitles' and rows[1] == 'Harbour.Lights.S01E05.WEB · OpenSubtitles' and not any('Black.Clover' in r for r in rows) and 'Show all results (1 more)' in rows, rows)
         await ev("(function(){var s=P.Player.debug(); s.pi=0;})()"); await ev("P.Player.layer.key('ok')"); await pg.wait_for_timeout(3500)
         sub = await ev("document.getElementById('plSub').textContent")
         check('picked one: added on the server and drawn by Plume', 'مرحبا' in sub and any(h.startswith('PUT /library/metadata/403/subtitles') for h in hits) and 'key=%2Fsubtitles%2Fos%2F777' in ' '.join(hits), [sub, await ev("P.Player.debug().subHow")])

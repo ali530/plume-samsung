@@ -37,8 +37,7 @@ Tizen Studio and your Samsung certificate are already set up on your PC from the
 1. **Developer Mode on the TV.** Open **Apps**, press **1 2 3 4 5** on the remote, turn **Developer mode** on, enter your PC's IP address, then restart the TV (hold the power button until it restarts).
 2. **Connect it.** Tizen Studio → Tools → **Device Manager** → Remote Device Manager → **+**. Name `S90CA`, the TV's IP, port `26101` → Add → switch **Connection** on.
 3. **Certificate for this TV.** Tizen Studio → Tools → **Certificate Manager** → **+** → **Samsung** → **TV** → profile name `S90CA` → **Use an existing author certificate** (the one from your first TV) → sign in with your Samsung account → in the distributor step, check that the S90CA's **DUID** is listed (it appears while the TV is connected) → Finish. Make sure `S90CA` is the active profile.
-4. **Install.** Unzip `Plume-S90CA.zip` on the Desktop, open the folder, double-click **install.bat**, and answer the two questions (profile `S90CA` and the TV's IP).
-   It packages, signs, installs and opens Plume.
+4. **Install.** Unzip `Plume-S90CA.zip` on the Desktop, open the folder and double-click **install.bat**. It asks nothing: it uses the certificate profile `S90CA` (edit the PROFILE line if yours differs) and the TV that's connected in Device Manager, and remembers the TV's address in `install.cfg`. It packages, signs, installs and opens Plume.
 
 If the Desktop is inside OneDrive, unzip it anywhere else (for example `C:\Plume`) and run `install.bat` from there.
 

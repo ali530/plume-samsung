@@ -73,6 +73,7 @@
       '<div class="ytp-bottom"><span class="ytp-pp" id="ytPP"></span><div class="ytp-bar"><i id="ytFill"></i></div><span class="ytp-time" id="ytT"></span></div></div>';
     document.body.appendChild(root);
     frame = P.$('#ytFrame');
+    frame.addEventListener('load', function () { if (st) st.loaded = true; });   // the TV loaded the page (even if it stays silent)
     document.body.classList.add('playing');            // like the Plex player: no sleep screen, alerts wait
     P.UI.push(layer);
     window.addEventListener('message', onMsg);
@@ -80,7 +81,8 @@
     // nothing playing after 15 seconds: say why, and let the YouTube app take over
     st.failT = setTimeout(function () {
       if (st !== mine || st.playing) return;
-      toApp(!st.heard ? "Couldn't reach the player page" : st.lastState === -1 || st.lastState === 5 ? "YouTube didn't start the video (state " + st.lastState + ')' : '');
+      toApp(!st.loaded ? "The TV didn't load the player page" : !st.heard ? 'The player page loaded but YouTube stayed silent' :
+        st.lastState === -1 || st.lastState === 5 || st.lastState == null ? "YouTube didn't start the video (state " + st.lastState + ')' : '');
     }, 15000);
   };
 
