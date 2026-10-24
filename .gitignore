@@ -4,3 +4,5 @@ __pycache__/
 .DS_Store
 install.cfg
 Plume/Plume.wgt
+Plume/img/tiles/*.png
+Plume/youtube-key.txt.local

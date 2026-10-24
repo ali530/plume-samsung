@@ -1,12 +1,13 @@
 @echo off
-rem Plume for Samsung: build, sign and install on the TV. No questions:
-rem   - certificate profile: S90CA (change PROFILE below if yours is named differently)
-rem   - the TV: the one already connected in Tizen's Device Manager, else the address saved from last time (install.cfg)
+rem Plume for Samsung: build, sign and install on the TV. Normally no questions:
+rem   - certificate: the profile that is active in Tizen Studio's Certificate Manager
+rem   - the TV: the one connected in Tizen's Device Manager, the address saved last time, or found on the home network
+rem Both are remembered in install.cfg next to this file.
 rem Optional: install.bat 192.168.1.50   (use this TV address and remember it)
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
-set PROFILE=S90CA
+set PROFILE=
 set TVIP=%~1
 
 set TIZEN=C:\tizen-studio\tools\ide\bin\tizen.bat
@@ -18,8 +19,19 @@ if not exist "%TIZEN%" (
   pause & exit /b 1
 )
 
-rem the address saved last time
-if "%TVIP%"=="" if exist install.cfg for /f "usebackq tokens=1,* delims==" %%a in ("install.cfg") do if /i "%%a"=="TVIP" set TVIP=%%b
+rem what was saved last time
+if exist install.cfg for /f "usebackq tokens=1,* delims==" %%a in ("install.cfg") do (
+  if /i "%%a"=="TVIP" if "!TVIP!"=="" set TVIP=%%b
+  if /i "%%a"=="PROFILE" set PROFILE=%%b
+)
+rem the certificate profile that is active in Tizen Studio (Certificate Manager)
+if "%PROFILE%"=="" for %%f in ("C:\tizen-studio-data\profile\profiles.xml" "%USERPROFILE%\tizen-studio-data\profile\profiles.xml" "C:\tizen-data\profile\profiles.xml") do (
+  if "!PROFILE!"=="" if exist %%f for /f "usebackq delims=" %%p in (`powershell -NoProfile -Command "([xml](Get-Content -Raw '%%~f')).profiles.active"`) do set PROFILE=%%p
+)
+if "%PROFILE%"=="" (
+  echo No active certificate profile found in Tizen Studio's Certificate Manager.
+  set /p PROFILE=Certificate profile name: 
+)
 
 echo.
 echo [1/4] Finding the TV ...
@@ -44,7 +56,7 @@ if "%FOUND%"=="" (
   pause & exit /b 1
 )
 for /f "tokens=1 delims=:" %%i in ("%FOUND%") do set TVIP=%%i
-> install.cfg echo TVIP=%TVIP%
+(echo TVIP=%TVIP%& echo PROFILE=%PROFILE%) > install.cfg
 echo     TV at %TVIP%
 
 echo.
@@ -52,7 +64,8 @@ echo [2/4] Building and signing with profile %PROFILE% ...
 if exist "Plume\Plume.wgt" del /q "Plume\Plume.wgt"
 call "%TIZEN%" package -t wgt -s %PROFILE% -- "%~dp0Plume"
 if not exist "Plume\Plume.wgt" (
-  echo Signing failed. In Tizen Studio, open Certificate Manager and check that the profile %PROFILE% exists and is Active.
+  echo Signing failed with the certificate profile "%PROFILE%". In Tizen Studio, open Certificate Manager and check it exists and is Active.
+  echo To use another profile, delete install.cfg and run this again.
   pause & exit /b 1
 )
 
