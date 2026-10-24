@@ -1,4 +1,4 @@
-Your own pictures for any tile (optional). None are included: logos belong to their companies.
+Pictures for the tiles. Included: ps5, bein, matches, youtube, disney, shahid (logos belong to their companies).
 
 Put a PNG here, then run install.bat again:
   ps5.png      -> the PS5 tile

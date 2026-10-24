@@ -62,7 +62,7 @@ Settings → Football → *YouTube key for highlights* then shows **Set**. The f
 - **Put Plume first:** Home → highlight Plume → press Down → **Move** → first place.
 - **Open with the TV:** Settings → General → Smart Features → turn on **Autorun Last App**, and turn off **Autorun Smart Hub**. Leave Plume open when you turn the TV off.
 - **Inputs:** Plume has tiles for a PS5 (HDMI 1) and a beIN receiver (HDMI 2). Change the ports in Plume → Settings → Inputs, or remove the tiles from the row (hold OK on a tile).
-- **Your own tile pictures:** app logos come from the TV itself. For any tile you can add your own picture to `Plume\img\tiles\`: `ps5.png`, `bein.png`, `matches.png`, or an app's name such as `youtube.png`, `disney.png`, `shahid.png`, `netflix.png` (a logo on a transparent background, 256 px or larger), then run `install.bat` again. Logos aren't included in this repository: they belong to their companies.
+- **Your own tile pictures:** app logos come from the TV itself. For any tile you can add your own picture to `Plume\img\tiles\`: `ps5.png`, `bein.png`, `matches.png`, or an app's name such as `youtube.png`, `disney.png`, `shahid.png`, `netflix.png` (a logo on a transparent background, 256 px or larger), then run `install.bat` again. The PS5, beIN, Matches, YouTube, Disney+ and Shahid pictures are included; the logos belong to their companies.
 
 ## Samsung limits
 
