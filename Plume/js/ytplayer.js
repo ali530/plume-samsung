@@ -1,27 +1,21 @@
-/* Highlights inside Plume, with YouTube's own embedded player (the official way to show a YouTube video in an app).
-   Plume's remote works as in its Plex player: OK or Play/Pause pauses, ◀ ▶ (or ⏪ ⏩) jump 10 seconds, Back closes.
-   A video whose channel doesn't allow playing outside YouTube opens in the YouTube app instead. */
+/* Highlights inside Plume. YouTube's embedded player only plays on a web page with a real address, and Plume runs
+   from files on the TV, so Plume shows a one-page player hosted on GitHub Pages (github.com/ali530/plume-player)
+   and drives it with messages: OK or Play/Pause pauses, ◀ ▶ (or ⏪ ⏩) jump 10 seconds, Back closes.
+   If YouTube won't play a video there (some channels allow it only on YouTube), the YouTube app opens instead,
+   and the message says YouTube's reason. */
 (function () {
-  var Y = { open_: false };
-  var root = null, player = null, st = null, apiWait = [];
+  var PAGE = 'https://ali530.github.io/plume-player/';
+  var Y = { open_: false, page: PAGE };
+  var root = null, frame = null, st = null;
+  var REASONS = { 2: 'YouTube says the video link is wrong', 5: "YouTube's player had a problem", 100: 'the video was removed or made private',
+    101: 'the channel allows it only on YouTube', 150: 'the channel allows it only on YouTube', 152: 'YouTube refused to play it here', 153: 'YouTube refused to play it here' };
 
-  function loadApi(done) {
-    if (window.YT && YT.Player) { done(); return; }
-    apiWait.push(done);
-    if (apiWait.length > 1) return;
-    window.onYouTubeIframeAPIReady = function () { var w = apiWait; apiWait = []; w.forEach(function (f) { f(); }); };
-    var s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api';
-    s.onerror = function () { var w = apiWait; apiWait = []; w.forEach(function (f) { f(new Error('no YouTube')); }); };
-    document.head.appendChild(s);
-  }
-
+  function cmd(c, by) { try { frame.contentWindow.postMessage({ cmd: c, by: by }, '*'); } catch (e) {} }
   function fmt(sec) { sec = Math.max(0, Math.round(sec || 0)); return Math.floor(sec / 60) + ':' + P.pad(sec % 60); }
   function paint() {
     if (!st || !root) return;
-    var cur = 0, dur = 0;
-    try { cur = player.getCurrentTime(); dur = player.getDuration(); } catch (e) {}
-    P.$('#ytT').textContent = fmt(cur) + (dur ? ' / ' + fmt(dur) : '');
-    P.$('#ytFill').style.transform = 'scaleX(' + (dur ? Math.min(1, cur / dur) : 0).toFixed(4) + ')';
+    P.$('#ytT').textContent = fmt(st.t) + (st.d ? ' / ' + fmt(st.d) : '');
+    P.$('#ytFill').style.transform = 'scaleX(' + (st.d ? Math.min(1, st.t / st.d) : 0).toFixed(4) + ')';
     P.$('#ytPP').innerHTML = st.paused ? P.icon('play') : '<svg class="ic" viewBox="0 0 24 24"><rect x="6.5" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/></svg>';
   }
   function show() {
@@ -29,87 +23,88 @@
     root.classList.add('ui-on'); paint();
     clearTimeout(st.hideT); st.hideT = setTimeout(function () { if (root && !st.paused) root.classList.remove('ui-on'); }, 3500);
   }
-
   function toApp(why) {
     var v = st && st.v;
     Y.close();
-    if (v) { P.UI.toast((why ? P.esc(why) + ' · ' : '') + 'Opening it in YouTube', 3500); P.Highlights.playApp(v); }
+    if (v) { P.UI.toast((why ? P.esc(why) + ' · ' : '') + 'Opening it in YouTube', 4500); P.Highlights.playApp(v); }
+  }
+
+  function onMsg(e) {
+    var m = e.data;
+    if (!st || !m || !m.plume || (frame && e.source !== frame.contentWindow)) return;
+    st.heard = true;
+    if (m.ev === 'error') { toApp(REASONS[m.code] ? REASONS[m.code] + ' (' + m.code + ')' : 'YouTube error ' + m.code); return; }
+    if (m.ev === 'time') { st.t = m.t; st.d = m.d; if (root.classList.contains('ui-on')) paint(); }
+    if (m.ev === 'state' || m.ev === 'time') {
+      var s = m.s;
+      if (s === 1) {                                   // playing
+        if (!st.playing) { st.playing = true; P.$('#ytWait').style.display = 'none'; show(); armAwake(); }
+        if (st.paused && m.ev === 'state') { st.paused = false; show(); }
+      }
+      if (s === 2 && m.ev === 'state') { st.paused = true; root.classList.add('ui-on'); paint(); }
+      if (s === 0 && m.ev === 'state') Y.close();       // finished
+      st.lastState = s;
+    }
+  }
+  /* Samsung's protection screen comes 2 minutes after the last button: start the silent video before that.
+     If it upsets YouTube's playback, stop it again. */
+  function armAwake() {
+    var mine = st;
+    if (st.awakeT || st.noAwake) return;
+    st.awakeT = setTimeout(function () {
+      if (st !== mine || st.paused) { if (st === mine) st.awakeT = null; return; }
+      st.awake = true; P.Sleep.keepAwake(true);
+      setTimeout(function () {
+        if (st !== mine || st.paused) return;
+        if (st.lastState !== 1) { P.Sleep.keepAwake(false); st.awake = false; st.noAwake = true; cmd('play'); }
+      }, 6000);
+    }, 100000);
   }
 
   Y.open = function (v) {
     if (Y.open_) Y.close();
-    st = { v: v, playing: false, paused: false, hideT: null, failT: null, tickT: null };
+    st = { v: v, playing: false, paused: false, t: 0, d: 0, heard: false };
     Y.open_ = true;
     root = P.el('div', 'ytp ui-on'); root.id = 'ytp';
-    root.innerHTML = '<div id="ytFrame"></div><div class="ytp-wait" id="ytWait"><i></i></div>' +
+    root.innerHTML = '<iframe id="ytFrame" allow="autoplay; encrypted-media; fullscreen" referrerpolicy="strict-origin-when-cross-origin" src="' +
+      P.esc(Y.page + '?v=' + encodeURIComponent(v.id) + '&hl=' + (/[؀-ۿ]/.test(v.title) ? 'ar' : 'en')) + '"></iframe>' +
+      '<div class="ytp-wait" id="ytWait"><i></i></div>' +
       '<div class="ytp-ui"><div class="ytp-top"><div class="ytp-t">' + P.esc(v.title) + '</div><div class="ytp-c">' + P.esc(v.channel) + '</div></div>' +
       '<div class="ytp-bottom"><span class="ytp-pp" id="ytPP"></span><div class="ytp-bar"><i id="ytFill"></i></div><span class="ytp-time" id="ytT"></span></div></div>';
     document.body.appendChild(root);
+    frame = P.$('#ytFrame');
     document.body.classList.add('playing');            // like the Plex player: no sleep screen, alerts wait
     P.UI.push(layer);
-    // if nothing plays within 12 seconds, the YouTube app takes over
-    st.failT = setTimeout(function () { if (st && !st.playing) toApp(); }, 12000);
+    window.addEventListener('message', onMsg);
     var mine = st;
-    loadApi(function (err) {
-      if (st !== mine) return;
-      if (err) { toApp("Couldn't reach YouTube"); return; }
-      player = new YT.Player('ytFrame', {
-        width: 1920, height: 1080, videoId: v.id,
-        playerVars: { autoplay: 1, controls: 0, rel: 0, playsinline: 1, modestbranding: 1, iv_load_policy: 3, fs: 0, disablekb: 1, enablejsapi: 1 },
-        events: {
-          onReady: function (e) { if (st === mine) { try { e.target.playVideo(); } catch (x) {} } },
-          onStateChange: function (e) {
-            if (st !== mine) return;
-            if (e.data === 1) {                               // playing
-              st.playing = true; st.paused = false; P.$('#ytWait').style.display = 'none';
-              // Samsung's protection screen comes 2 minutes after the last button: before that, start the silent video.
-              // If it upsets YouTube's playback, stop it again.
-              if (!st.awakeT && !st.noAwake) st.awakeT = setTimeout(function () {
-                if (st !== mine || st.paused) { if (st === mine) st.awakeT = null; return; }
-                st.awake = true; P.Sleep.keepAwake(true);
-                setTimeout(function () {
-                  if (st !== mine || st.paused) return;
-                  var ps = -1; try { ps = player.getPlayerState(); } catch (x) {}
-                  if (ps !== 1) { P.Sleep.keepAwake(false); st.awake = false; st.noAwake = true; try { player.playVideo(); } catch (x) {} }
-                }, 6000);
-              }, 100000);
-              show();
-            }
-            if (e.data === 2) { st.paused = true; root.classList.add('ui-on'); paint(); }
-            if (e.data === 0) Y.close();                      // finished
-          },
-          // 100 removed · 101/150 the channel doesn't allow it here · 152/153 YouTube won't play it in apps
-          onError: function (e) { if (st === mine) toApp(/^(101|150|152|153)$/.test(String(e.data)) ? 'This channel plays its videos only on YouTube' : ''); }
-        }
-      });
-      st.tickT = setInterval(function () { if (root && root.classList.contains('ui-on')) paint(); }, 500);
-    });
+    // nothing playing after 15 seconds: say why, and let the YouTube app take over
+    st.failT = setTimeout(function () {
+      if (st !== mine || st.playing) return;
+      toApp(!st.heard ? "Couldn't reach the player page" : st.lastState === -1 || st.lastState === 5 ? "YouTube didn't start the video (state " + st.lastState + ')' : '');
+    }, 15000);
   };
 
   Y.close = function () {
     if (!st) return;
-    clearTimeout(st.hideT); clearTimeout(st.failT); clearInterval(st.tickT); clearTimeout(st.awakeT);
+    clearTimeout(st.hideT); clearTimeout(st.failT); clearTimeout(st.awakeT);
     if (st.awake) P.Sleep.keepAwake(false);
-    try { player && player.destroy(); } catch (e) {}
-    player = null; st = null; Y.open_ = false;
-    if (root) { root.remove(); root = null; }
+    window.removeEventListener('message', onMsg);
+    try { cmd('stop'); } catch (e) {}
+    st = null; Y.open_ = false;
+    if (root) { root.remove(); root = null; } frame = null;
     document.body.classList.remove('playing');
     P.UI.pop(layer);
   };
 
-  function jump(s) { try { player.seekTo(Math.max(0, player.getCurrentTime() + s), true); } catch (e) {} show(); }
-  function toggle() {
-    try { if (st.paused) player.playVideo(); else player.pauseVideo(); } catch (e) {}
-    show();
-  }
+  function toggle() { if (st.paused) cmd('play'); else cmd('pause'); show(); }
   var layer = {
     name: 'youtube',
     key: function (k) {
       if (!st) return;
       if (k === 'back' || k === 'stop') { Y.close(); return; }
       if (k === 'ok' || k === 'pp') { toggle(); return; }
-      if (k === 'left' || k === 'rw') { jump(-10); return; }
-      if (k === 'right' || k === 'ff') { jump(10); return; }
+      if (k === 'left' || k === 'rw') { cmd('seek', -10); show(); return; }
+      if (k === 'right' || k === 'ff') { cmd('seek', 10); show(); return; }
       show();
     }
   };

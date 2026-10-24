@@ -18,7 +18,8 @@
     city: 'Riyadh',
     returnToPlume: true,
     plexCopy: 'last',              // which version plays: last (the one you played last) | 4k | 1080 (same language only)
-    plexPicks: {},                 // per title (Plex guid): the version you last played in Plume {key, at}
+    plexPicks: {},
+    subOffsets: {},                // subtitle timing you set, per episode/film and subtitle (ms)                 // per title (Plex guid): the version you last played in Plume {key, at}
     folded: {},                    // rows folded away on the home screen: {cw: true, matches: true}
     matchAlerts: true,             // kick-off, goals and full time of your teams' matches and reminded ones
     autoNext: true,                // play the next episode after the countdown

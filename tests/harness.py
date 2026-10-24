@@ -211,14 +211,13 @@ async def install_routes(ctx, state):
             {'videoRenderer': {'videoId': 'CLUBVID001', 'title': {'runs': [{'text': 'Al Ahli 2-1 Al Qadsiah | Highlights'}]}, 'ownerText': {'runs': [{'text': 'Al Ahli Saudi Club'}]}}}]}}]}}}}}
         await route.fulfill(body='<html><script>var ytInitialData = ' + json.dumps(yd) + ';</script></html>', content_type='text/html')
     await ctx.route('https://www.youtube.com/**', youtube)
-    # YouTube's embedded player, as a stand-in: plays, or refuses like a channel that blocks embedding (window.__ytBlock)
-    YT_JS = """window.YT = { Player: function (id, o) { var self = this; window.__yt = { id: o.videoId, state: -1 };
-      self.playVideo = function () { window.__yt.state = 1; o.events.onStateChange({ data: 1 }); }; self.pauseVideo = function () { window.__yt.state = 2; o.events.onStateChange({ data: 2 }); };
-      self.seekTo = function (t) { window.__yt.seek = t; }; self.getCurrentTime = function () { return 12; }; self.getDuration = function () { return 600; };
-      self.getPlayerState = function () { return window.__yt.state; }; self.destroy = function () { window.__yt.destroyed = true; };
-      setTimeout(function () { if (window.__ytBlock) o.events.onError({ data: 150 }); else o.events.onReady({ target: self }); }, 50); } };
-      setTimeout(function () { window.onYouTubeIframeAPIReady && window.onYouTubeIframeAPIReady(); }, 10);"""
-    await ctx.route('https://www.youtube.com/iframe_api', lambda r: r.fulfill(body=YT_JS, content_type='text/javascript'))
+    # the player page on GitHub Pages, as a stand-in: plays, or refuses like a channel that blocks embedding (CLUBVID001)
+    PAGE = """<!doctype html><script>var id=new URLSearchParams(location.search).get('v'), s=1;function send(m){m.plume=1;parent.postMessage(m,'*')}
+      send({ev:'loaded'});
+      if (id==='CLUBVID001') setTimeout(function(){send({ev:'error',code:150})},50);
+      else { setTimeout(function(){send({ev:'state',s:1})},50); setInterval(function(){send({ev:'time',t:12,d:600,s:s})},300); }
+      addEventListener('message',function(e){var m=e.data||{}; if(!m.cmd) return; if(m.cmd==='pause'){s=2;send({ev:'state',s:2})} if(m.cmd==='play'){s=1;send({ev:'state',s:1})} send({ev:'echo',cmd:m.cmd,by:m.by})});</script>"""
+    await ctx.route('https://ali530.github.io/**', lambda r: r.fulfill(body=PAGE, content_type='text/html'))
     await ctx.route('https://api.open-meteo.com/**', weather)
     await ctx.route('https://plex.tv/**', plextv)
     await ctx.route('http://192.168.1.20:32400/**', pms)
@@ -341,19 +340,20 @@ async def main():
         check('highlights found, Thmanyah first, the full match from 2018 left out', len(vids) == 2 and vids[0].startswith('ملخص المباراة') and 'best match' in vids[0], vids)
         await shot('05c-highlights')
         await key('Enter'); await pg.wait_for_timeout(600)
-        check('plays inside Plume (YouTube embedded player)', await ev_("P.UI.top().name == 'youtube' && window.__yt && window.__yt.id == 'THMANYAH01' && document.body.classList.contains('playing')"))
+        await ev_("window.__ytlog=[]; addEventListener('message', function(e){ if(e.data && e.data.ev=='echo') window.__ytlog.push(e.data.cmd + (e.data.by||'')); })")
+        check('plays inside Plume (player page on GitHub Pages)', await ev_("P.UI.top().name == 'youtube' && document.getElementById('ytFrame').src.indexOf('ali530.github.io/plume-player/?v=THMANYAH01') >= 0 && document.body.classList.contains('playing') && document.getElementById('ytWait').style.display == 'none'"))
         await shot('05e-highlights-player')
         await key('Enter'); await pg.wait_for_timeout(150)
-        check('OK pauses it', await ev_("window.__yt.state == 2"))
-        await key('ArrowRight'); await pg.wait_for_timeout(100)
-        check('▶ jumps 10 seconds', await ev_("window.__yt.seek == 22"))
+        await pg.wait_for_timeout(200)
+        check('OK pauses it', 'pause' in await ev_("window.__ytlog"), await ev_("window.__ytlog"))
+        await key('ArrowRight'); await pg.wait_for_timeout(300)
+        check('▶ jumps 10 seconds', 'seek10' in await ev_("window.__ytlog"), await ev_("window.__ytlog"))
         await key('Escape'); await pg.wait_for_timeout(300)
         check('Back closes it', await ev_("P.UI.top().name == 'centre' && !document.getElementById('ytp') && !document.body.classList.contains('playing')"))
         # a channel that allows its videos only on YouTube: the YouTube app opens instead
-        await ev_("window.__ytBlock = true; P.YT.open({id:'CLUBVID001', title:'Al Ahli 2-1 Al Qadsiah | Highlights', channel:'Al Ahli Saudi Club'})"); await pg.wait_for_timeout(600)
+        await ev_("P.YT.open({id:'CLUBVID001', title:'Al Ahli 2-1 Al Qadsiah | Highlights', channel:'Al Ahli Saudi Club'})"); await pg.wait_for_timeout(800)
         calls = await ev_("JSON.stringify(window.__calls.filter(c=>c[0]=='launchAppControl').slice(-1))")
-        check('...a blocked one opens in the YouTube app', 'CLUBVID001' in calls and await ev_("P.UI.top().name") == 'centre', calls)
-        await ev_("window.__ytBlock = false")
+        check('...a blocked one opens in the YouTube app, saying why', 'CLUBVID001' in calls and await ev_("P.UI.top().name") == 'centre' and '(150)' in await ev_("document.getElementById('toast').textContent"), calls)
         await ev_("(function(){var ms=P.Centre.list();var i=ms.findIndex(m=>m.state=='post');P.Centre.zone='list';P.Centre.at=i;P.Centre.focusId=ms[i].id;P.Centre.render();})()"); await pg.wait_for_timeout(300)
         await key('Enter'); await pg.wait_for_timeout(300)
         await key('Enter'); await pg.wait_for_timeout(900)
@@ -390,6 +390,10 @@ async def main():
         await shot('05b-full-table')
         await key('ArrowRight'); await key('ArrowDown'); await pg.wait_for_timeout(200)
         check('Right moves to the coming matches', await ev_("document.getElementById('fc1').classList.contains('focus')"), await ev_("JSON.stringify([P.Centre.full && P.Centre.full.col, P.UI.top().name, !!document.getElementById('fc1')])"))
+        sel0 = await ev_("[...document.querySelectorAll('#fc1 .t-row')].findIndex(r=>r.classList.contains('sel'))")
+        await key('ArrowDown'); await pg.wait_for_timeout(250)
+        sel1 = await ev_("[...document.querySelectorAll('#fc1 .t-row')].findIndex(r=>r.classList.contains('sel'))")
+        check('league list: a highlighted row, starting at today, moves match by match', sel0 >= 1 and sel1 == sel0 + 1 and 'translate3d' in (await ev_("document.getElementById('ft1').style.transform") or ''), [sel0, sel1])
         await key('Escape'); await pg.wait_for_timeout(200)
         check('Back closes it', await ev_("!document.getElementById('cFull') && P.Centre.isOpen()"))
         await key('ArrowLeft'); await pg.wait_for_timeout(150)

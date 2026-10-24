@@ -259,27 +259,49 @@
       var dhtml = '<div class="f-top"><h2 class="d-h">' + P.UI.crest(m.home, 'sm') + P.esc(m.home.short) + ' <b>' + F.centreText(m) + '</b> ' + P.esc(m.away.short) + P.UI.crest(m.away, 'sm') +
         '<small>' + P.esc(m.compName + ' · ' + F.statusText(m) + (m.venue ? ' · ' + m.venue : '')) + '</small></h2>' +
         (okAction(m) ? '<span class="f-keys"><span class="key">OK</span>' + okAction(m)[0] + '</span>' : '') + '</div>' +
-        '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0">' + detailsLeft(m, f.data) + '</section>' +
-        '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-title">Line-ups</div>' + detailsRight(m, f.data) + '</section></div>';
-      if (box._html !== dhtml) {   // a live update keeps where you've scrolled to
-        var d0 = P.$('#fc0') ? P.$('#fc0').scrollTop : 0, d1 = P.$('#fc1') ? P.$('#fc1').scrollTop : 0;
-        box._html = dhtml; box.innerHTML = dhtml;
-        P.$('#fc0').scrollTop = d0; P.$('#fc1').scrollTop = d1;
-      }
+        '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-track" id="ft0">' + detailsLeft(m, f.data) + '</div></section>' +
+        '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-track" id="ft1"><div class="f-title">Line-ups</div>' + detailsRight(m, f.data) + '</div></section></div>';
+      if (box._html !== dhtml) { box._html = dhtml; box.innerHTML = dhtml; placeFull(true); }   // a live update keeps where you are
       return;
     }
     if (!box) { box = P.el('div', 'c-full'); box.id = 'cFull'; root().appendChild(box); }
     var html = '<div class="f-top"><h2>' + P.esc(c.name || '') + '</h2><span class="f-keys"><span class="key">◀ ▶</span>Switch · <span class="key">▲ ▼</span>Scroll · <span class="key">Back</span>Close</span></div>' +
-      '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-title">Table</div>' + fullTable(f.comp, f.m) + '</section>' +
-      '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-title">Matches</div>' + fixtures(f.comp, f.m) + '</section></div>';
-    if (box._html !== html) {
-      var s0 = P.$('#fc0') ? P.$('#fc0').scrollTop : 0, s1 = P.$('#fc1') ? P.$('#fc1').scrollTop : 0;
-      box._html = html; box.innerHTML = html;
-      P.$('#fc0').scrollTop = s0; P.$('#fc1').scrollTop = s1;
-      // the first time the matches arrive: open at today, the latest results just above
-      var mk = P.$('#fToday');
-      if (mk && !f.placed) { f.placed = true; var c1 = P.$('#fc1'); c1.style.scrollBehavior = 'auto'; c1.scrollTop = Math.max(0, mk.offsetTop - c1.offsetTop - 200); c1.style.scrollBehavior = ''; }
-    }
+      '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-track" id="ft0"><div class="f-title">Table</div>' + fullTable(f.comp, f.m) + '</div></section>' +
+      '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-track" id="ft1"><div class="f-title">Matches</div>' + fixtures(f.comp, f.m) + '</div></section></div>';
+    if (box._html !== html) { box._html = html; box.innerHTML = html; placeFull(true); }
+    else placeFull(false);
+  }
+
+  /* moving in the full pages: the columns slide on the graphics chip (like every other list in Plume).
+     League page: a highlighted row moves match by match (team by team in the table); it opens at today.
+     Match details: each press moves a third of a screen. */
+  function placeFull(fresh) {
+    var f = C.full; if (!f) return;
+    f.sel = f.sel || {}; f.y = f.y || {};
+    [0, 1].forEach(function (c) {
+      var track = P.$('#ft' + c), col = P.$('#fc' + c); if (!track || !col) return;
+      var y = f.y[c] || 0, h = col.clientHeight - 60;
+      if (f.kind !== 'details') {
+        var rows = P.$$('.t-row', track);
+        if (f.sel[c] == null && rows.length) {      // first time: the match you came from, or today
+          var mk = c === 1 ? P.$('#fToday', track) : null, here = P.$('.t-row.here', track);
+          f.sel[c] = mk ? Math.max(0, rows.findIndex(function (r) { return mk.compareDocumentPosition(r) & 4; })) : here ? rows.indexOf(here) : 0;
+          if (c === 1 && mk) y = Math.max(0, mk.offsetTop - 200);
+        }
+        f.sel[c] = Math.max(0, Math.min(rows.length - 1, f.sel[c] || 0));
+        rows.forEach(function (r, i) { r.classList.toggle('sel', i === f.sel[c] && f.col === c); });
+        var r = rows[f.sel[c]];
+        if (r) {
+          if (r.offsetTop + r.offsetHeight - y > h - 40) y = r.offsetTop + r.offsetHeight - h + 40;
+          if (r.offsetTop - y < 80) y = Math.max(0, r.offsetTop - 80);
+        }
+      }
+      y = Math.max(0, Math.min(y, track.scrollHeight - h));
+      if (fresh) { track.style.transition = 'none'; }
+      if (y !== track._y || fresh) { track._y = y; track.style.transform = 'translate3d(0,' + (-y) + 'px,0)'; }
+      if (fresh) { void track.offsetHeight; track.style.transition = ''; }
+      f.y[c] = y;
+    });
   }
   C.openFull = function () {
     if (!C.sideComp) return;
@@ -376,8 +398,17 @@
       if (C.full) {
         var col = P.$('#fc' + C.full.col);
         if (k === 'back') { closeFull(); return; }
-        if (k === 'left' || k === 'right') { C.full.col = k === 'left' ? 0 : 1; renderFull(); return; }
-        if ((k === 'up' || k === 'down') && col) col.scrollTop += k === 'up' ? -300 : 300;
+        if (k === 'left' || k === 'right') {
+          C.full.col = k === 'left' ? 0 : 1;
+          P.$$('#cFull .f-col').forEach(function (e, i) { e.classList.toggle('focus', i === C.full.col); });
+          placeFull(false); return;
+        }
+        if (k === 'up' || k === 'down') {
+          var c0 = C.full.col; C.full.sel = C.full.sel || {}; C.full.y = C.full.y || {};
+          if (C.full.kind === 'details') C.full.y[c0] = (C.full.y[c0] || 0) + (k === 'up' ? -300 : 300);
+          else C.full.sel[c0] = (C.full.sel[c0] || 0) + (k === 'up' ? -1 : 1);
+          placeFull(false); return;
+        }
         if (k === 'ok' && C.full.kind === 'details') { var oa = okAction(C.full.m); if (oa) oa[1](); }
         return;
       }

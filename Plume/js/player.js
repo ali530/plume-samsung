@@ -114,7 +114,7 @@
     st.embedded = false;
   }
   function loadSubs(sub) {
-    st.cues = null; st.cueAt = 0; setSubText(''); stopEmbedded();
+    st.cues = null; st.cueAt = 0; st.subOff = null; setSubText(''); stopEmbedded();
     st.subHow = sub ? 'Loading…' : '';
     var want = st.subGen = (st.subGen || 0) + 1;
     if (!sub || IMAGE_SUBS.test(sub.codec || '')) { st.subHow = sub ? 'Drawn into the picture by the server' : ''; return; }
@@ -269,6 +269,8 @@
   /* every line due at this moment (ASS often has two at once, such as a sign and the dialogue) */
   function subsAt(ms) {
     var c = st.cues; if (!c || !c.length) return;
+    if (st.subOff == null) st.subOff = getOff();
+    ms -= st.subOff;                                   // later: a line shows that much after its time
     var lo = 0, hi = c.length - 1, last = -1;
     while (lo <= hi) { var mid = (lo + hi) >> 1; if (c[mid].a <= ms) { last = mid; lo = mid + 1; } else hi = mid - 1; }
     var bottom = [], top = [];
@@ -348,7 +350,10 @@
       else if (S.state === 'saving') rows.push({ k: 'none', label: 'Adding it to your server…' });
       else if (S.state === 'error') rows.push({ k: 'none', label: S.error });
       else if (!S.items.length) rows.push({ k: 'none', label: 'Nothing found' });
-      else S.items.forEach(function (x, i) { rows.push({ k: 'pick', v: i, label: (x.displayTitle || x.title || x.languageTitle || 'Subtitles') + (x.providerTitle ? ' · ' + x.providerTitle : '') }); });
+      else S.items.forEach(function (x, i) {
+        var name = x.title && x.title !== x.displayTitle ? x.title : (x.displayTitle || x.languageTitle || 'Subtitles');
+        rows.push({ k: 'pick', v: i, label: (+x.perfectMatch ? '✓ Made for your file · ' : '') + name + (x.providerTitle ? ' · ' + x.providerTitle : '') });
+      });
       if (S.state !== 'loading' && S.state !== 'saving' && S.other) rows.push({ k: 'lang', label: 'Search in ' + S.other.name + ' instead' });
       rows.push({ k: 'back', label: 'Back' });
       return rows;
@@ -356,6 +361,7 @@
     rows.push({ h: 'Subtitles' }); rows.push({ k: 'sub', v: 0, label: 'Off', on: !pl.sub });
     var sl = labels(pl.subs, true);
     pl.subs.forEach(function (x, i) { rows.push({ k: 'sub', v: x.id, label: sl[i], on: x === pl.sub }); });
+    if (st.cues) rows.push({ k: 'offset', label: 'Subtitle timing   ◀ ' + offText() + ' ▶' });
     rows.push({ k: 'search', label: 'Search subtitles online…' });
     rows.push({ h: 'Audio' });
     var al = labels(pl.audios, false);
@@ -393,6 +399,19 @@
     }).join('') + '<div class="pp-note">Starts with Plex\'s choices for this ' + (st.meta && st.meta.type === 'episode' ? 'episode' : 'title') + '. Subtitle and audio changes are saved to Plex.</div>';
     var f = P.$('#plPanel .pp-r.focus'); if (f) f.scrollIntoView({ block: 'nearest' });
     return pick;
+  }
+  /* Subtitle timing: ◀ earlier, ▶ later, half a second a press; remembered for this episode or film */
+  function offKey() { return st.key + ':' + (st.plan.sub ? st.plan.sub.id : ''); }
+  function getOff() { var m = P.S.get('subOffsets') || {}; return +m[offKey()] || 0; }
+  function offText() { var o = getOff(); return o === 0 ? 'on time' : (o > 0 ? '+' : '−') + Math.abs(o / 1000).toFixed(1) + ' s ' + (o > 0 ? 'later' : 'earlier'); }
+  function shiftSubs(dir) {
+    var m = Object.assign({}, P.S.get('subOffsets') || {}), k = offKey();
+    m[k] = Math.max(-30000, Math.min(30000, (+m[k] || 0) + dir * 500));
+    if (!m[k]) delete m[k];
+    var ks = Object.keys(m); if (ks.length > 300) delete m[ks[0]];
+    P.S.set('subOffsets', m);
+    st.subOff = m[k] || 0;
+    subsAt(st.t); renderPanel();
   }
   function choosePanel() {
     var r = renderPanel()[st.pi]; if (!r) return;
@@ -451,7 +470,10 @@
           var d = {}; try { d = JSON.parse(t); } catch (e) { lastErr = 'unexpected answer'; throw 0; }
           if (st !== mine || !st.search) return;
           var mc = d.MediaContainer || {};
-          st.search.items = (mc.Stream || mc.Metadata || []).slice(0, 12);
+          var items = (mc.Stream || mc.Metadata || []);
+          // the ones made for exactly your file first (Plex marks them), then by Plex's score
+          items.sort(function (a, b) { return (+(b.perfectMatch || 0) - +(a.perfectMatch || 0)) || ((+b.score || 0) - (+a.score || 0)); });
+          st.search.items = items.slice(0, 12);
           st.search.state = 'list'; renderPanel();
         });
       }).catch(function () { attempt(i + 1); });
@@ -770,6 +792,8 @@
         if (k === 'up') st.pi = Math.max(0, st.pi - 1);
         if (k === 'down') st.pi = Math.min(n - 1, st.pi + 1);
         if (k === 'ok') { choosePanel(); return; }
+        var cur = renderPanel()[st.pi];
+        if (cur && cur.k === 'offset' && (k === 'left' || k === 'right')) { shiftSubs(k === 'left' ? -1 : 1); return; }
         if ((k === 'back' || k === 'left') && st.search) { st.search = null; st.pi = 0; renderPanel(); return; }
         if (k === 'back' || k === 'left') { st.panel = false; P.$('#plPanel').classList.remove('on'); show(true); paint(); return; }
         renderPanel(); return;
