@@ -8,7 +8,7 @@
   G.render = function () {
     var A = P.Apps, colour = P.S.get('logos') === 'colour', inRow = P.S.get('row');
     var list = items();
-    root().innerHTML = '<div class="aa-head"><h1>All apps</h1><span class="hint"><span class="key">Hold OK</span> add to the row or remove</span></div>' +
+    root().innerHTML = '<div class="aa-head"><h1>' + P.t('All apps') + '</h1><span class="hint"><span class="key">' + P.t('Hold OK') + '</span> ' + P.t('add to the row or remove') + '</span></div>' +
       '<div class="aa-grid">' + list.map(function (it, i) {
         return '<div class="aa-cell" data-i="' + i + '"><div class="tile app kind-' + it.kind + (inRow.indexOf(it.key) >= 0 ? ' inrow' : '') + '"><div class="logo">' +
           A.logoHTML(it, P.Home.dark, colour) + '</div>' + (inRow.indexOf(it.key) >= 0 ? '<span class="pinned">' + P.icon('check') + '</span>' : '') +
@@ -39,9 +39,9 @@
       if (k === 'ok' && it) { G.close(); P.Apps.open(it); return; }
       if (k === 'hold' && it) {
         var row = P.S.get('row'), on = row.indexOf(it.key) >= 0;
-        var ops = on ? [{ label: 'Remove from row', icon: 'eyeOff', act: function () { P.S.set('row', row.filter(function (x) { return x !== it.key; })); G.render(); } }]
-          : [{ label: 'Add to the end of the row', icon: 'check', act: function () { P.S.set('row', row.concat([it.key])); G.render(); } },
-             { label: 'Add to the front of the row', icon: 'move', act: function () { P.S.set('row', [it.key].concat(row)); G.render(); } }];
+        var ops = on ? [{ label: P.t('Remove from row'), icon: 'eyeOff', act: function () { P.S.set('row', row.filter(function (x) { return x !== it.key; })); G.render(); } }]
+          : [{ label: P.t('Add to the end of the row'), icon: 'check', act: function () { P.S.set('row', row.concat([it.key])); G.render(); } },
+             { label: P.t('Add to the front of the row'), icon: 'move', act: function () { P.S.set('row', [it.key].concat(row)); G.render(); } }];
         P.UI.menu(P.$('.aa-cell.focus', root()), P.Apps.label(it), ops);
         return;
       }

@@ -16,7 +16,7 @@
   function resLabel(r) { r = String(r || '').toLowerCase(); return r === '4k' ? '4K' : /^\d+$/.test(r) ? r + 'p' : r.toUpperCase(); }
   function qualities(media) {
     var br = media.bitrate || 0, h = RES_H[String(media.videoResolution || '').toLowerCase()] || 2160;
-    var list = [{ id: 'original', label: [resLabel(media.videoResolution), br ? mbps(br) : ''].filter(Boolean).join(' · ') + ' (Original)', q: null }];
+    var list = [{ id: 'original', label: [resLabel(media.videoResolution), br ? mbps(br) : ''].filter(Boolean).join(' · ') + ' (' + P.t('Original') + ')', q: null }];
     LADDER.forEach(function (l) {
       var lh = +l[2].split('x')[1];
       if ((!br || l[0] < br) && lh <= h) list.push({ id: l[0] + '-' + l[1], label: l[1] + ' · ' + mbps(l[0]), q: { kbps: l[0], res: l[2] } });
@@ -99,8 +99,11 @@
                 blk.match(/(\d+:\d+[.,]\d+)\s*-->\s*(\d+:\d+[.,]\d+)[^\n]*\n([\s\S]*)/);
         if (!m) return;
         var a = m[1].split(':').length === 2 ? '0:' + m[1] : m[1], b = m[2].split(':').length === 2 ? '0:' + m[2] : m[2];
-        var t = m[3].replace(/<[^>]+>/g, '').trim();
-        if (t) out.push({ a: parseTime(a), b: parseTime(b), t: t, top: /line:\s*[0-9]{1,2}%/.test(blk.split('\n')[0] || '') && !/line:\s*[5-9][0-9]%/.test(blk) });
+        // many SRT files carry ASS position codes like {\an8} (Plex reads them): at the top, never shown as text
+        var raw = m[3], codeTop = /\{[^}]*\\an[789][^}]*\}/.test(raw) || /\{[^}]*\\a(5|6|7|9|10|11)(?!\d)[^}]*\}/.test(raw);
+        var t = raw.replace(/\{\\[^}]*\}/g, '').replace(/<[^>]+>/g, '').replace(/\\N/g, '\n').replace(/[ \t]+\n/g, '\n').trim();
+        var vttTop = /line:\s*[0-9]{1,2}%/.test(blk.split('\n')[0] || '') && !/line:\s*[5-9][0-9]%/.test(blk);
+        if (t) out.push({ a: parseTime(a), b: parseTime(b), t: t, top: codeTop || vttTop });
       });
     }
     return out.sort(function (x, y) { return x.a - y.a; });
@@ -165,7 +168,7 @@
     var pl = st.plan;
     if (!st.triedRemux) { st.triedRemux = true; pl.remuxSubs = true; pl.forceBurn = false; st.subHow = 'Asking the server to send them as text'; restart({}); return; }
     if (!st.triedBurn) { st.triedBurn = true; pl.remuxSubs = false; pl.forceBurn = true; st.subHow = 'Drawn into the picture by the server'; restart({}); return; }
-    st.subHow = "Couldn't show them — " + st.subLog.join(' · ') + '. Try Search subtitles online in ⚙';
+    st.subHow = P.t("Couldn't show them") + ' — ' + st.subLog.join(' · ') + P.t('. Try Search subtitles online in ⚙');
   }
 
   /* ---------- the remuxed stream: picture from its own playlist, subtitles from theirs (WebVTT pieces) ---------- */
@@ -184,7 +187,7 @@
           st.subLog = (st.subLog || []).concat((step === 'remux' ? 'repackaged stream' : 'converted picture') + ': Plex says ' + (d.words || 'no'));
           if (step === 'remux' && !st.triedBurn) { st.triedBurn = true; pl.forceBurn = true; restart({}); return; }
           st.plan.sub = null; restart({});
-          st.subHow = "Couldn't show them — " + st.subLog.join(' · ') + '. Try Search subtitles online in ⚙';
+          st.subHow = P.t("Couldn't show them") + ' — ' + st.subLog.join(' · ') + P.t('. Try Search subtitles online in ⚙');
           return;
         }
         pl.decided = true; startStream(at); pl.decided = false;
@@ -300,8 +303,8 @@
       '<div class="pl-times"><span id="plT"></span><span id="plLeft"></span></div>' +
       '<div class="pl-btns"><div class="pl-l"><button data-b="set">' + ICONS.gear + '</button><button data-b="info">' + ICONS.info + '</button></div>' +
       '<div class="pl-c"><button data-b="rw">−10</button><button data-b="pp" class="big" id="plPP"></button><button data-b="ff">+10</button></div>' +
-      '<div class="pl-r"><button data-b="next" class="pill" id="plNextBtn">Next episode</button></div></div></div>' +
-      '<button class="pl-skip" id="plSkip">Skip intro</button>' +
+      '<div class="pl-r"><button data-b="next" class="pill" id="plNextBtn">' + P.t('Next episode') + '</button></div></div></div>' +
+      '<button class="pl-skip" id="plSkip">' + P.t('Skip intro') + '</button>' +
       '<div class="pl-panel" id="plPanel"></div><div class="pl-info" id="plInfo"></div><div class="pl-next" id="plNext"></div>';
     document.body.appendChild(root);
     subEl = P.$('#plSub'); subTopEl = P.$('#plSubTop'); lastSub = null; lastTop = null;
@@ -320,7 +323,7 @@
     var bw = st.bw || (st.bw = P.$('#plBar').offsetWidth || 1766);
     P.$('#plKnob').style.transform = 'translate3d(' + (p / 100 * bw).toFixed(1) + 'px,0,0)';
     P.$('#plT').textContent = fmt(t);
-    P.$('#plLeft').textContent = fmt(d - t) + ' left';
+    P.$('#plLeft').textContent = P.t('{t} left', { t: fmt(d - t) });
     P.$('#plPP').innerHTML = st.playing ? ICONS.pause : ICONS.play;
     P.$$('#plUi [data-b]').forEach(function (b) { b.classList.toggle('focus', st.zone === 'btns' && BTNS[st.sel] === b.dataset.b); });
     P.$('#plBar').classList.toggle('focus', st.zone === 'bar');
@@ -345,33 +348,33 @@
     var pl = st.plan, rows = [];
     if (st.search) {                       // the results of "Search subtitles online"
       var S = st.search;
-      rows.push({ h: 'Subtitles online · ' + S.langName });
-      if (S.state === 'loading') rows.push({ k: 'none', label: 'Searching…' });
-      else if (S.state === 'saving') rows.push({ k: 'none', label: 'Adding it to your server…' });
+      rows.push({ h: P.t('Subtitles online') + ' · ' + P.t(S.langName) });
+      if (S.state === 'loading') rows.push({ k: 'none', label: P.t('Searching…') });
+      else if (S.state === 'saving') rows.push({ k: 'none', label: P.t('Adding it to your server…') });
       else if (S.state === 'error') rows.push({ k: 'none', label: S.error });
       else {
         var list = S.showAll ? S.items.concat(S.others || []) : S.items;
-        if (!list.length) rows.push({ k: 'none', label: 'Nothing found for ' + (S.what || 'this title') });
+        if (!list.length) rows.push({ k: 'none', label: P.t('Nothing found for {what}', { what: S.what || P.t('this title') }) });
         list.forEach(function (x, i) {
           var name = x.title && x.title !== x.displayTitle ? x.title : (x.displayTitle || x.languageTitle || 'Subtitles');
-          rows.push({ k: 'pick', v: i, label: (x._ep ? '✓ This episode · ' : +x.perfectMatch ? '✓ Made for your file · ' : '') + name + (x.providerTitle ? ' · ' + x.providerTitle : '') });
+          rows.push({ k: 'pick', v: i, label: (x._ep ? '✓ ' + P.t('This episode') + ' · ' : +x.perfectMatch ? '✓ ' + P.t('Made for your file') + ' · ' : '') + name + (x.providerTitle ? ' · ' + x.providerTitle : '') });
         });
-        if (!S.showAll && S.others && S.others.length) rows.push({ k: 'all', label: 'Show all results (' + S.others.length + ' more)' });
+        if (!S.showAll && S.others && S.others.length) rows.push({ k: 'all', label: P.t('Show all results ({n} more)', { n: S.others.length }) });
       }
-      if (S.state !== 'loading' && S.state !== 'saving' && S.other) rows.push({ k: 'lang', label: 'Search in ' + S.other.name + ' instead' });
-      rows.push({ k: 'back', label: 'Back' });
+      if (S.state !== 'loading' && S.state !== 'saving' && S.other) rows.push({ k: 'lang', label: P.t('Search in {lang} instead', { lang: P.t(S.other.name) }) });
+      rows.push({ k: 'back', label: P.t('Back') });
       return rows;
     }
-    rows.push({ h: 'Subtitles' }); rows.push({ k: 'sub', v: 0, label: 'Off', on: !pl.sub });
+    rows.push({ h: P.t('Subtitles') }); rows.push({ k: 'sub', v: 0, label: P.t('Off'), on: !pl.sub });
     var sl = labels(pl.subs, true);
     pl.subs.forEach(function (x, i) { rows.push({ k: 'sub', v: x.id, label: sl[i], on: x === pl.sub }); });
-    if (st.cues) rows.push({ k: 'offset', label: 'Subtitle timing   ◀ ' + offText() + ' ▶' });
-    rows.push({ k: 'search', label: 'Search subtitles online…' });
-    rows.push({ h: 'Audio' });
+    if (st.cues) rows.push({ k: 'offset', label: P.t('Subtitle timing') + '   ◀ ' + offText() + ' ▶' });
+    rows.push({ k: 'search', label: P.t('Search subtitles online…') });
+    rows.push({ h: P.t('Audio') });
     var al = labels(pl.audios, false);
     pl.audios.forEach(function (x, i) { rows.push({ k: 'aud', v: x.id, label: al[i], on: x === pl.audio }); });
-    rows.push({ h: 'Quality' });
-    (st.qualities || []).forEach(function (q) { rows.push({ k: 'q', v: q.id, label: q.label, on: st.quality === q.id }); });
+    rows.push({ h: P.t('Quality') });
+    (st.qualities || []).forEach(function (q) { rows.push({ k: 'q', v: q.id, label: P.t(q.label), on: st.quality === q.id }); });
     return rows;
   }
   /* Clear names, so two Arabic tracks don't read the same: Arabic (SRT) · Forced, English · SDH, ... */
@@ -380,14 +383,14 @@
       var t = x.extendedDisplayTitle || x.displayTitle || x.language || (isSub ? 'Subtitles' : 'Audio');
       var extra = [];
       if (x.title && t.indexOf(x.title) < 0) extra.push(x.title);
-      if (x.forced && !/forced/i.test(t)) extra.push('Forced');
+      if (x.forced && !/forced/i.test(t)) extra.push(P.t('Forced'));
       if (x.hearingImpaired && !/sdh/i.test(t)) extra.push('SDH');
       return t + (extra.length ? ' · ' + extra.join(' · ') : '');
     });
     out = out.map(function (t, i) {
       if (out.filter(function (u) { return u === t; }).length < 2) return t;
       var x = list[i];
-      return t + ' · ' + (isSub ? (x.key ? 'External' : 'In the file') : (x.codec || '').toUpperCase()) ;
+      return t + ' · ' + (isSub ? P.t(x.key ? 'External' : 'In the file') : (x.codec || '').toUpperCase()) ;
     });
     var seen = {};
     return out.map(function (t) { seen[t] = (seen[t] || 0) + 1; return seen[t] > 1 ? t + ' (' + seen[t] + ')' : t; });
@@ -400,14 +403,14 @@
       if (r.h) return '<div class="pp-h">' + r.h + '</div>';
       var f = i++ === st.pi;
       return '<div class="pp-r' + (f ? ' focus' : '') + '"><span>' + P.esc(r.label) + '</span><span>' + (r.on ? '✓' : '') + '</span></div>';
-    }).join('') + '<div class="pp-note">Starts with Plex\'s choices for this ' + (st.meta && st.meta.type === 'episode' ? 'episode' : 'title') + '. Subtitle and audio changes are saved to Plex.</div>';
+    }).join('') + '<div class="pp-note">' + P.t(st.meta && st.meta.type === 'episode' ? "Starts with Plex's choices for this episode. Subtitle and audio changes are saved to Plex." : "Starts with Plex's choices for this title. Subtitle and audio changes are saved to Plex.") + '</div>';
     var f = P.$('#plPanel .pp-r.focus'); if (f) f.scrollIntoView({ block: 'nearest' });
     return pick;
   }
   /* Subtitle timing: ◀ earlier, ▶ later, half a second a press; remembered for this episode or film */
   function offKey() { return st.key + ':' + (st.plan.sub ? st.plan.sub.id : ''); }
   function getOff() { var m = P.S.get('subOffsets') || {}; return +m[offKey()] || 0; }
-  function offText() { var o = getOff(); return o === 0 ? 'on time' : (o > 0 ? '+' : '−') + Math.abs(o / 1000).toFixed(1) + ' s ' + (o > 0 ? 'later' : 'earlier'); }
+  function offText() { var o = getOff(); return o === 0 ? P.t('on time') : P.t(o > 0 ? '+{s} s later' : '−{s} s earlier', { s: Math.abs(o / 1000).toFixed(1) }); }
   function shiftSubs(dir) {
     var m = Object.assign({}, P.S.get('subOffsets') || {}), k = offKey();
     m[k] = Math.max(-30000, Math.min(30000, (+m[k] || 0) + dir * 500));
@@ -468,7 +471,7 @@
     var lastErr = '';
     (function attempt(i) {
       if (st !== mine || !st.search) return;
-      if (i >= forms.length) { st.search.state = 'error'; st.search.error = "Couldn't search: " + (lastErr || 'your server refused'); renderPanel(); return; }
+      if (i >= forms.length) { st.search.state = 'error'; st.search.error = P.t("Couldn't search") + ': ' + (lastErr || P.t('your server refused')); renderPanel(); return; }
       fetch(s.uri + '/library/metadata/' + st.key + '/subtitles?' + forms[i], { headers: P.Plex.hdrs(s.token) }).then(function (r) {
         return r.text().then(function (t) {
           if (!r.ok) { lastErr = 'your server said ' + r.status + (t ? ' (' + t.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) + ')' : ''); throw 0; }
@@ -490,7 +493,7 @@
           items.sort(function (a, b) { return (b._ep - a._ep) || (+(b.perfectMatch || 0) - +(a.perfectMatch || 0)) || ((+b.score || 0) - (+a.score || 0)); });
           st.search.items = items.filter(function (x) { return x._ok; }).slice(0, 12);
           st.search.others = items.filter(function (x) { return !x._ok; }).slice(0, 20);
-          st.search.what = (meta.grandparentTitle || meta.title || '') + (meta.type === 'episode' ? ' S' + meta.parentIndex + ' E' + meta.index : '');
+          st.search.what = (meta.grandparentTitle || meta.title || '') + (meta.type === 'episode' ? ' ' + P.t('S{s} E{e}', { s: meta.parentIndex, e: meta.index }) : '');
           st.search.state = 'list'; renderPanel();
         });
       }).catch(function () { attempt(i + 1); });
@@ -531,7 +534,7 @@
       st.pi = 0; renderPanel();
     }).catch(function (e) {
       if (st !== mine || !st.search) return;
-      S.state = 'error'; S.error = "Couldn't add it: " + (e && e.message || 'error'); renderPanel();
+      S.state = 'error'; S.error = P.t("Couldn't add it") + ': ' + (e && e.message || 'error'); renderPanel();
     });
   }
 
@@ -541,21 +544,21 @@
     var hdr = (pl.part.Stream || []).filter(function (x) { return x.streamType === 1; })[0] || {};
     var dr = hdr.DOVIPresent ? 'Dolby Vision' : /hdr|pq|smpte2084|hlg/i.test((hdr.colorTrc || '') + (hdr.displayTitle || '')) ? 'HDR10' : 'SDR';
     var qq = qOf(st.quality);
-    var how = pl.direct ? 'Directly, no conversion' : pl.remuxSubs ? 'Repackaged: picture and sound copied, subtitles sent as text' : pl.q ? 'Converted to ' + (qq ? qq.label : '') : pl.burn ? 'Picture converted to show subtitles' : 'Audio converted, picture original';
-    var sl = pl.sub ? labels(pl.subs, true)[pl.subs.indexOf(pl.sub)] : 'Off';
+    var how = pl.direct ? P.t('Directly, no conversion') : pl.remuxSubs ? P.t('Repackaged: picture and sound copied, subtitles sent as text') : pl.q ? P.t('Converted to {q}', { q: qq ? P.t(qq.label) : '' }) : pl.burn ? P.t('Picture converted to show subtitles') : P.t('Audio converted, picture original');
+    var sl = pl.sub ? labels(pl.subs, true)[pl.subs.indexOf(pl.sub)] : P.t('Off');
     var rows = [['Video', [res, dr, (m.videoCodec || '').toUpperCase()].filter(Boolean).join(' · ')],
-      ['Audio', pl.audio ? labels(pl.audios, false)[pl.audios.indexOf(pl.audio)] : '—'], ['Subtitles', sl + (st.subHow ? ' — ' + st.subHow : '')],
+      ['Audio', pl.audio ? labels(pl.audios, false)[pl.audios.indexOf(pl.audio)] : '—'], ['Subtitles', sl + (st.subHow ? ' — ' + P.t(st.subHow) : '')],
       ['Version', st.versionLabel || '—'], ['Playing', how], ['Server', srv().name], ['Bitrate', m.bitrate ? mbps(m.bitrate) : '—']];
-    P.$('#plInfo').innerHTML = rows.map(function (r) { return '<div><span>' + r[0] + '</span><b>' + P.esc(r[1]) + '</b></div>'; }).join('');
+    P.$('#plInfo').innerHTML = rows.map(function (r) { return '<div><span>' + P.t(r[0]) + '</span><b>' + P.esc(r[1]) + '</b></div>'; }).join('');
   }
 
   function renderNext() {
     var n = st.nextMeta, el = P.$('#plNext');
     if (!st.upNext || !n) { el.classList.remove('on'); return; }
     var img = n.thumb ? srv().uri + '/photo/:/transcode?width=480&height=270&minSize=1&upscale=1&url=' + encodeURIComponent(n.thumb) + '&X-Plex-Token=' + tok() : '';
-    el.innerHTML = '<div class="pn-img">' + (img ? '<img src="' + img + '" alt="">' : '') + '<span>Up next in <b>' + st.count + '</b></span></div>' +
-      '<div class="pn-t">S' + n.parentIndex + ' E' + n.index + ' · ' + P.esc(n.title) + '</div>' +
-      '<div class="pn-b"><button class="' + (st.nsel === 0 ? 'focus' : '') + '">Play now</button><button class="' + (st.nsel === 1 ? 'focus' : '') + '">Stay here</button></div>';
+    el.innerHTML = '<div class="pn-img">' + (img ? '<img src="' + img + '" alt="">' : '') + '<span>' + P.t('Up next in') + ' <b>' + st.count + '</b></span></div>' +
+      '<div class="pn-t">' + P.t('S{s} E{e}', { s: n.parentIndex, e: n.index }) + ' · ' + P.esc(n.title) + '</div>' +
+      '<div class="pn-b"><button class="' + (st.nsel === 0 ? 'focus' : '') + '">' + P.t('Play now') + '</button><button class="' + (st.nsel === 1 ? 'focus' : '') + '">' + P.t('Stay here') + '</button></div>';
     el.classList.add('on');
   }
 
@@ -669,7 +672,7 @@
     if (st.plan && st.plan.forceBurn) {   // the server won't draw them in either: play on without them
       st.subLog = (st.subLog || []).concat('converted picture: the TV couldn\'t play it (' + code + ')');
       st.plan.forceBurn = false; st.plan.sub = null; restart({});
-      st.subHow = "Couldn't show them — " + st.subLog.join(' · ') + '. Try Search subtitles online in ⚙'; return;
+      st.subHow = P.t("Couldn't show them") + ' — ' + st.subLog.join(' · ') + P.t('. Try Search subtitles online in ⚙'); return;
     }
     if (st.plan && st.plan.direct && !st.triedConvert) {   // the TV couldn't play the file as it is: let the server help once
       st.triedConvert = true; st.plan.convertAudio = true; restart({});
@@ -677,8 +680,8 @@
     }
     var card = st.card;
     V.close();
-    P.UI.dialog({ title: "Couldn't play this here", body: '<p>Your Plex server or the TV refused this title' + (st && st.plan && !st.plan.direct ? ' (your provider may not allow conversion)' : '') + '. Open it in the Plex app instead?</p>',
-      buttons: [{ label: 'Open in Plex', act: function () { P.Plex.openApp(card); } }, { label: 'Cancel' }] });
+    P.UI.dialog({ title: P.t("Couldn't play this here"), body: '<p>' + P.t('Your Plex server or the TV refused this title') + (st && st.plan && !st.plan.direct ? P.t(' (your provider may not allow conversion)') : '') + P.t('. Open it in the Plex app instead?') + '</p>',
+      buttons: [{ label: P.t('Open in Plex'), act: function () { P.Plex.openApp(card); } }, { label: P.t('Cancel') }] });
   }
 
   function loadNext(meta) {
@@ -729,7 +732,7 @@
     pickVersion(card, key).then(function (c) {
       if (st !== mine) throw new Error('closed');
       st.key = c.play.key; st.copies = c.all; st.t = c.offset;
-      st.versionLabel = c.play.label ? c.play.label + (key ? ' — your pick' : c.why ? ' — ' + c.why : '') : '';
+      st.versionLabel = c.play.label ? c.play.label + (key ? ' — ' + P.t('your pick') : c.why ? ' — ' + P.t(c.why) : '') : '';
       if (card.guid) P.Plex.remember(card, st.key);
       return get('/library/metadata/' + st.key + '?includeMarkers=1');
     }).then(function (d) {
@@ -737,7 +740,7 @@
       if (!meta || !st) throw new Error('not found');
       st.meta = meta; st.dur = meta.duration || 0; st.markers = meta.Marker || [];
       P.$('#plTitle').textContent = meta.type === 'episode' ? meta.grandparentTitle : meta.title;
-      P.$('#plEp').textContent = meta.type === 'episode' ? 'S' + meta.parentIndex + ' E' + meta.index + ' · ' + meta.title : (meta.year || '');
+      P.$('#plEp').textContent = meta.type === 'episode' ? P.t('S{s} E{e}', { s: meta.parentIndex, e: meta.index }) + ' · ' + meta.title : (meta.year || '');
       st.qualities = qualities((meta.Media || [])[0] || {});
       st.plan = plan(meta, st.quality);
       st.thumbs = /sd/.test(st.plan.part.indexes || '');

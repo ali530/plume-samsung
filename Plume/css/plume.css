@@ -2,6 +2,9 @@
    48dp side margins, 8 tiles in the row, 16dp gaps — doubled here. */
 @font-face { font-family: 'Inter'; font-weight: 100 900; font-display: swap; src: url(inter-latin-wght-normal.woff2) format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+/* Arabic letters (Noto Sans Arabic, SIL Open Font License): Arabic titles in English mode, and all of Plume in Arabic */
+@font-face { font-family: 'Plume Arabic'; font-weight: 100 900; font-display: swap; src: url(noto-sans-arabic-arabic-wght-normal.woff2) format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
 @font-face { font-family: 'Inter'; font-weight: 100 900; font-display: swap; src: url(inter-latin-ext-wght-normal.woff2) format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
 
@@ -25,7 +28,7 @@ body.dark {
 html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
 body {
   background: var(--ground); color: var(--fg);
-  font-family: 'Inter', 'SamsungOneUI', 'SamsungOne', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', 'Plume Arabic', 'SamsungOneUI', 'SamsungOne', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased; font-feature-settings: 'tnum' 1;
   transition: background .4s, color .4s;
 }
@@ -230,6 +233,7 @@ body.with-matches .sec h2 { margin-bottom: 14px; }
 .panel { position: fixed; top: 0; right: 0; bottom: 0; width: 760px; z-index: 6; background: var(--panel); padding: 54px 44px 40px;
   display: flex; flex-direction: column; transform: translateX(100%); transition: transform .25s ease-out; box-shadow: -20px 0 60px rgba(0, 0, 0, .18); }
 body.dark .panel { box-shadow: -1px 0 0 rgba(255, 255, 255, .08); }
+html[dir=rtl] body.dark .panel { box-shadow: 1px 0 0 rgba(255, 255, 255, .08); }
 .panel.on { transform: none; }
 .s-head { display: flex; align-items: center; gap: 12px; padding: 0 20px; }
 .s-head h2 { font-size: 42px; font-weight: 500; margin: 0; letter-spacing: -.5px; }
@@ -569,3 +573,42 @@ body.input-on .alert { visibility: visible; }
 .ytp-hint { position: absolute; left: 50%; bottom: 80px; transform: translateX(-50%); display: none; align-items: center; gap: 14px; padding: 16px 26px;
   border-radius: 20px; background: rgba(14,15,17,.86); font-size: 24px; box-shadow: 0 0 0 1px rgba(255,255,255,.14); z-index: 2; }
 .ytp-hint.on { display: flex; }
+
+/* ---------- Arabic: the whole screen right to left ---------- */
+html[dir=rtl] body { letter-spacing: 0; }
+html[dir=rtl] * { letter-spacing: 0 !important; }
+html[dir=rtl] .al-k, html[dir=rtl] .s-sec { text-transform: none; }
+html[dir=rtl] .i-back { transform: scaleX(-1); }
+html[dir=rtl] .key { margin-right: 0; margin-left: 10px; }
+html[dir=rtl] .strip { transform-origin: right center; }
+html[dir=rtl] .tile .port { right: auto; left: 14px; }
+html[dir=rtl] .mt b, html[dir=rtl] .mline .tn.r, html[dir=rtl] .d-goals .r, html[dir=rtl] .cols i, html[dir=rtl] .cols b, html[dir=rtl] .t-row .nm.r,
+html[dir=rtl] .s-row .val, html[dir=rtl] .z-m .h, html[dir=rtl] .z-live, html[dir=rtl] .ds-r b.r, html[dir=rtl] .tl-r.away .tl-w, html[dir=rtl] .tl-r.away .tl-m,
+html[dir=rtl] .lu-pos { text-align: left; }
+html[dir=rtl] .mrow { text-align: right; }
+html[dir=rtl] .aa-head .hint { margin-left: 0; margin-right: auto; }
+html[dir=rtl] .pinned { right: auto; left: 10px; }
+html[dir=rtl] .panel { right: auto; left: 0; transform: translateX(-100%); box-shadow: 20px 0 60px rgba(0, 0, 0, .18); }
+html[dir=rtl] .panel.on { transform: none; }
+html[dir=rtl] .sw i { left: auto; right: 4px; transition: right .14s, background .14s; }
+html[dir=rtl] .sw.on i { left: auto; right: 34px; }
+html[dir=rtl] .sw.radio i, html[dir=rtl] .sw.radio.on i { right: 6px; }
+html[dir=rtl] .banner, html[dir=rtl] .alert { right: auto; left: var(--side); }
+html[dir=rtl] .b-keys { margin-left: 0; margin-right: 20px; }
+html[dir=rtl] .b-keys .key:nth-of-type(2) { margin-left: 10px; margin-right: 18px; }
+html[dir=rtl] .z-when { left: auto; right: var(--side); }
+html[dir=rtl] .z-matches { right: auto; left: var(--side); }
+html[dir=rtl] .sec h2[data-key] { margin-left: 0; margin-right: -18px; }
+html[dir=rtl] .c-table.focus::after { content: 'OK · الجدول كاملًا والمباريات القادمة'; }
+html[dir=rtl] .f-col .t-row .dot { margin-right: 0; margin-left: 4px; }
+html[dir=rtl] .sh-tabs { margin-left: 0; margin-right: -6px; }
+html[dir=rtl] .c-days { margin-left: 0; margin-right: 30px; }
+/* the players keep their time bar and buttons left to right (◀ back, ▶ forward); their words read right to left */
+html[dir=rtl] .pl, html[dir=rtl] .ytp { direction: ltr; }
+html[dir=rtl] .pl-top, html[dir=rtl] .pl-panel, html[dir=rtl] .pl-info, html[dir=rtl] .pl-next, html[dir=rtl] .pl-skip, html[dir=rtl] .pl-r button,
+html[dir=rtl] .ytp-top, html[dir=rtl] .ytp-hint { direction: rtl; }
+html[dir=rtl] .pl-info b { text-align: left; }
+/* app names read in their own direction ("Disney+", "PS5 · HDMI 1") */
+html[dir=rtl] .tile .name, html[dir=rtl] .row-label, html[dir=rtl] .aa-cell .name, html[dir=rtl] .menu-title, html[dir=rtl] .word { unicode-bidi: plaintext; }
+html[dir=rtl] .sh-ep.here .sh-t::after { content: ' ·  متابعة المشاهدة'; }
+html[dir=rtl] .pl-c, html[dir=rtl] .pl-c button { direction: ltr; unicode-bidi: isolate; }

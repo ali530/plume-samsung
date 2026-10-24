@@ -132,6 +132,7 @@ async def main():
         await ctx.route('http://192.168.1.20:32400/**', pms)
         await ctx.add_init_script(g['MOCK_TV'])
         await ctx.add_init_script(AVPLAY)
+        if os.environ.get('PLUME_LANG') == 'ar': await ctx.add_init_script("localStorage.setItem('plume.lang','\"ar\"')")
         await ctx.add_init_script("localStorage.setItem('plume.welcomed','1');localStorage.setItem('plume.plex', JSON.stringify({token:'usertoken',user:'Ali',server:{name:'Home Server',id:'abc123',uri:'http://192.168.1.20:32400',token:'srvtok'}}));")
         pg = await ctx.new_page()
         errs = []
@@ -254,6 +255,9 @@ async def main():
               'Dialogue: 0,0:00:02.00,0:00:04.00,Draw,,0,0,0,,{\\p1}m 0 0 l 10 10{\\p0}\n'
         parsed = await ev("JSON.stringify(P.Player._parseSubs(%s))" % json.dumps(ass))
         check('ASS: read despite the hidden marker, two lines, top line, no shapes', '"t":"Hello, world\\nsecond line"' in parsed and '"top":true' in parsed and parsed.count('"a"') == 2, parsed)
+        srt = '1\n00:00:01,000 --> 00:00:03,000\n{\\an8}كاري وسمك!\n\n2\n00:00:04,000 --> 00:00:06,000\n{\\i1}Plain line{\\i0}\n'
+        parsed = await ev("JSON.stringify(P.Player._parseSubs(%s))" % json.dumps(srt))
+        check('SRT with {\\an8}: the code is never shown, that line goes on top', '\\an' not in parsed and '{' not in parsed.replace('[{','').replace(',{','') and '"t":"كاري وسمك!","top":true' in parsed and '"t":"Plain line","top":false' in parsed, parsed)
         # embedded ASS the server won't hand over and the TV can't read: remux with text subtitles
         await ev("window.__noText = true")
         await ev("P.Plex.open({key:'401', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(3500)

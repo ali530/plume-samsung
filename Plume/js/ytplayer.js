@@ -7,8 +7,8 @@
   var PAGE = 'https://ali530.github.io/plume-player/';
   var Y = { open_: false, page: PAGE };
   var root = null, frame = null, st = null;
-  var REASONS = { 2: 'YouTube says the video link is wrong', 5: "YouTube's player had a problem", 100: 'the video was removed or made private',
-    101: 'the channel allows it only on YouTube', 150: 'the channel allows it only on YouTube', 152: 'YouTube refused to play it here', 153: 'YouTube refused to play it here' };
+  var REASONS = { 2: P.t('YouTube says the video link is wrong'), 5: P.t("YouTube's player had a problem"), 100: P.t('the video was removed or made private'),
+    101: P.t('the channel allows it only on YouTube'), 150: P.t('the channel allows it only on YouTube'), 152: P.t('YouTube refused to play it here'), 153: P.t('YouTube refused to play it here') };
 
   function cmd(c, by) { try { frame.contentWindow.postMessage({ cmd: c, by: by }, '*'); } catch (e) {} }
   function fmt(sec) { sec = Math.max(0, Math.round(sec || 0)); return Math.floor(sec / 60) + ':' + P.pad(sec % 60); }
@@ -26,14 +26,14 @@
   function toApp(why) {
     var v = st && st.v;
     Y.close();
-    if (v) { P.UI.toast((why ? P.esc(why) + ' · ' : '') + 'Opening it in YouTube', 4500); P.Highlights.playApp(v); }
+    if (v) { P.UI.toast((why ? P.esc(why) + ' · ' : '') + P.t('Opening it in YouTube'), 4500); P.Highlights.playApp(v); }
   }
 
   function onMsg(e) {
     var m = e.data;
     if (!st || !m || !m.plume || (frame && e.source !== frame.contentWindow)) return;
     st.heard = true;
-    if (m.ev === 'error') { toApp(REASONS[m.code] ? REASONS[m.code] + ' (' + m.code + ')' : 'YouTube error ' + m.code); return; }
+    if (m.ev === 'error') { toApp(REASONS[m.code] ? REASONS[m.code] + ' (' + m.code + ')' : P.t('YouTube error {n}', { n: m.code })); return; }
     if (m.ev === 'time') { st.t = m.t; st.d = m.d; if (root.classList.contains('ui-on')) paint(); }
     if (m.ev === 'state' || m.ev === 'time') {
       var s = m.s;
@@ -69,7 +69,7 @@
     root.innerHTML = '<iframe id="ytFrame" allow="autoplay; encrypted-media; fullscreen" referrerpolicy="strict-origin-when-cross-origin" src="' +
       P.esc(Y.page + '?v=' + encodeURIComponent(v.id) + '&hl=' + (/[؀-ۿ]/.test(v.title) ? 'ar' : 'en')) + '"></iframe>' +
       '<div class="ytp-wait" id="ytWait"><i></i></div>' +
-      '<div class="ytp-hint" id="ytHint">An ad? <span class="key">OK</span>Open it in the YouTube app (no ads with your subscription) · Settings → Football → Highlights play in</div>' +
+      '<div class="ytp-hint" id="ytHint">' + P.t('An ad?') + ' <span class="key">OK</span>' + P.t('Open it in the YouTube app (no ads with your subscription) · Settings → Football → Highlights play in') + '</div>' +
       '<div class="ytp-ui"><div class="ytp-top"><div class="ytp-t">' + P.esc(v.title) + '</div><div class="ytp-c">' + P.esc(v.channel) + '</div></div>' +
       '<div class="ytp-bottom"><span class="ytp-pp" id="ytPP"></span><div class="ytp-bar"><i id="ytFill"></i></div><span class="ytp-time" id="ytT"></span></div></div>';
     document.body.appendChild(root);
@@ -84,8 +84,8 @@
     // OK to open it in YouTube instead.
     st.failT = setTimeout(function () {
       if (st !== mine || st.playing) return;
-      if (!st.loaded) { toApp("The TV didn't load the player page"); return; }
-      if (!st.heard) { toApp('The player page loaded but YouTube stayed silent'); return; }
+      if (!st.loaded) { toApp(P.t("The TV didn't load the player page")); return; }
+      if (!st.heard) { toApp(P.t('The player page loaded but YouTube stayed silent')); return; }
       st.offerApp = true;
       var h = P.$('#ytHint'); if (h) h.classList.add('on');
     }, 15000);

@@ -77,7 +77,9 @@
     if (!r) return;
     if (P.Sleep.active) P.Sleep.hide();
     var mins = Math.max(0, Math.round((r.at - Date.now()) / 60000));
-    P.UI.banner({ title: r.title, sub: mins ? 'Kicks off in ' + mins + ' min' : 'Kicking off now', okLabel: 'Watch on beIN',
+    var m = P.Football.find(r.id);
+    P.UI.banner({ title: m ? P.team(m.home, true) + ' ' + P.t('vs') + ' ' + P.team(m.away, true) : r.title,
+      sub: mins ? P.t('Kicks off in {n} min', { n: mins }) : P.t('Kicking off now'), okLabel: P.t('Watch on beIN'),
       onOk: function () { P.Apps.switchTo('hdmi:bein'); } });
   }
 
@@ -121,8 +123,8 @@
       if (!localStorage.getItem('plume.welcomed')) {
         localStorage.setItem('plume.welcomed', '1');
         if (!P.S.get('plex')) setTimeout(function () {
-          P.UI.dialog({ title: 'Welcome to Plume', body: '<p>Connect Plex to see what you were watching on the home screen. You can do it later from Settings.</p>',
-            buttons: [{ label: 'Connect Plex', act: P.Settings.plexSignIn }, { label: 'Later' }] });
+          P.UI.dialog({ title: P.t('Welcome to Plume'), body: '<p>' + P.t('Connect Plex to see what you were watching on the home screen. You can do it later from Settings.') + '</p>',
+            buttons: [{ label: P.t('Connect Plex'), act: P.Settings.plexSignIn }, { label: P.t('Later') }] });
         }, 800);
       }
     } catch (e) {}

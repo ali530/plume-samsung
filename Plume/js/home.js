@@ -2,7 +2,7 @@
 (function () {
   var H = { row: 'apps', key: null, editing: null, dark: false };
   var WALLS = { 'rockies-day': 'img/rockies-day.jpg', 'rockies-dusk': 'img/rockies-dusk.jpg', 'plain': '' };
-  H.WALL_NAMES = { 'rockies-day': 'Rockies (day)', 'rockies-dusk': 'Rockies (dusk)', 'plain': 'Plain' };
+  H.WALL_NAMES = { 'rockies-day': P.t('Rockies (day)'), 'rockies-dusk': P.t('Rockies (dusk)'), 'plain': P.t('Plain') };
 
   /* ---------- theme and wallpaper ---------- */
   H.applyTheme = function () {
@@ -47,16 +47,16 @@
       m = pool[stripAt];
       if (live.length > 1) counter = '<span class="count">' + (live.indexOf(m) + 1) + '/' + live.length + '</span>';
       html = '<span class="live"><i class="dot"></i>' + P.esc(F.statusText(m)) + '</span>' +
-        P.UI.crest(m.home, 'sm') + '<span class="tn">' + P.esc(m.home.short) + '</span><b class="sc">' + F.centreText(m) + '</b>' +
-        '<span class="tn">' + P.esc(m.away.short) + '</span>' + P.UI.crest(m.away, 'sm') +
+        P.UI.crest(m.home, 'sm') + '<span class="tn">' + P.esc(P.team(m.home, true)) + '</span><b class="sc">' + F.centreText(m) + '</b>' +
+        '<span class="tn">' + P.esc(P.team(m.away, true)) + '</span>' + P.UI.crest(m.away, 'sm') +
         '<span class="sub">· ' + P.esc(m.compShort) + '</span>' + counter;
     } else {
       m = F.next();
       if (m) {
-        var tag = m.tag && m.tag !== 'Your team' ? m.tag + ' · ' : '';
+        var tag = m.tag && m.tag !== 'Your team' ? P.t(m.tag) + ' · ' : '';
         html = '<span class="nx">' + P.icon(F.hasReminder(m) ? 'bell' : 'star') + '</span><span class="sub">' + P.esc(tag) + '</span>' +
-          P.UI.crest(m.home, 'sm') + '<span class="tn">' + P.esc(m.home.short) + '</span><span class="vs">vs</span><span class="tn">' + P.esc(m.away.short) + '</span>' + P.UI.crest(m.away, 'sm') +
-          '<span class="sub">· ' + P.hhmm(m.date) + ' · in ' + P.until(m.date - Date.now()) + '</span>';
+          P.UI.crest(m.home, 'sm') + '<span class="tn">' + P.esc(P.team(m.home, true)) + '</span><span class="vs">' + P.t('vs') + '</span><span class="tn">' + P.esc(P.team(m.away, true)) + '</span>' + P.UI.crest(m.away, 'sm') +
+          '<span class="sub">· ' + P.hhmm(m.date) + ' · ' + P.t('in {t}', { t: P.until(m.date - Date.now()) }) + '</span>';
       }
     }
     stripMatch = m;
@@ -97,7 +97,7 @@
     document.body.classList.toggle('with-matches', !!list.length);
     if (!list.length) { if (H.row === 'matches' || H.row === 'matchesH') H.focus('apps'); return; }
     var live = list.filter(function (m) { return m.state === 'in'; }).length;
-    P.$('#matchCount').textContent = list.length + (live ? ' · ' + live + ' live now' : '');
+    P.$('#matchCount').textContent = list.length + (live ? ' · ' + P.t('{n} live now', { n: live }) : '');
     var mr = P.$('#matchRow'), html = '<div class="track">' + list.map(function (m) { return H.matchCard(m); }).join('') + '</div>';
     if (mr._html !== html) { mr._html = html; mr.innerHTML = html; }
     H.paintFocus();
@@ -106,9 +106,9 @@
     var F = P.Football, st = F.statusText(m);
     var status = m.state === 'in' ? '<span class="live"><i class="dot"></i>' + P.esc(st) + '</span>'
       : m.state === 'post' ? '<span>' + P.esc(st) + '</span>'
-      : (m.tag ? '<span class="tag">' + P.icon(F.hasReminder(m) ? 'bell' : 'star') + P.esc(m.tag) + '</span>' : (F.hasReminder(m) ? '<span class="tag">' + P.icon('bell') + '</span>' : ''));
+      : (m.tag ? '<span class="tag">' + P.icon(F.hasReminder(m) ? 'bell' : 'star') + P.esc(P.t(m.tag)) + '</span>' : (F.hasReminder(m) ? '<span class="tag">' + P.icon('bell') + '</span>' : ''));
     var line = function (t, score) {
-      return '<div class="mt' + (P.Football.isFavName(t.name) ? ' me' : '') + '">' + P.UI.crest(t, 'sm') + '<span class="tn">' + P.esc(t.short) + '</span>' + (m.state === 'pre' ? '' : '<b>' + P.esc(score || '0') + '</b>') + '</div>';
+      return '<div class="mt' + (P.Football.isFavName(t.name) ? ' me' : '') + '">' + P.UI.crest(t, 'sm') + '<span class="tn">' + P.esc(P.team(t, true)) + '</span>' + (m.state === 'pre' ? '' : '<b>' + P.esc(score || '0') + '</b>') + '</div>';
     };
     return '<div class="mcard' + (m.fav ? ' fav' : '') + '" data-key="m:' + m.id + '"><div class="mtop"><span class="comp">' + P.esc(m.compName) + '</span>' + status + '</div>' +
       '<div class="mbody"><div class="mteams">' + line(m.home, m.home.score) + line(m.away, m.away.score) + '</div>' +
@@ -120,9 +120,9 @@
     var X = P.Plex, sec = P.$('#cwSec'), row = P.$('#cwRow'), html = '';
     if (X.state !== 'in') {
       html = '<div class="cwcard note" data-key="cw:connect"><div class="poster">' + '<div class="note-in">' + P.icon('play') +
-        '<b>Connect Plex</b><span>See what you were watching</span></div></div></div>';
+        '<b>' + P.t('Connect Plex') + '</b><span>' + P.t('See what you were watching') + '</span></div></div></div>';
     } else if (!X.items.length && X.error) {
-      html = '<div class="cwcard note" data-key="cw:retry"><div class="poster"><div class="note-in"><b>Plex server not reachable</b><span>Press OK to try again</span></div></div></div>';
+      html = '<div class="cwcard note" data-key="cw:retry"><div class="poster"><div class="note-in"><b>' + P.t('Plex server not reachable') + '</b><span>' + P.t('Press OK to try again') + '</span></div></div></div>';
     } else {
       html = X.items.map(function (c) {
         return '<div class="cwcard" data-key="cw:' + P.esc(c.key) + '"><div class="poster">' + (c.image ? '<img src="' + P.esc(c.image) + '" alt="" decoding="async" onload="this.classList.add(\'ok\')">' : '') + '</div>' +
@@ -185,7 +185,7 @@
       var it = P.Apps.items[cur.dataset.key];
       label.textContent = it ? P.Apps.label(it) : '';
       var tr = cur.parentNode;
-      label.style.transform = 'translate3d(' + Math.round(cur.offsetLeft + cur.offsetWidth / 2 - (tr._x || 0)) + 'px,0,0) translateX(-50%)';
+      label.style.transform = 'translate3d(' + Math.round(cur.offsetLeft + cur.offsetWidth / 2 + (P.rtl ? 1 : -1) * (tr._x || 0)) + 'px,0,0) translateX(-50%)';
       label.classList.add('on');
     } else label.classList.remove('on');
     P.$('#appRow').classList.toggle('editing', !!H.editing);
@@ -194,10 +194,10 @@
   function scrollInto(el) {
     var track = el.parentNode, row = track && track.parentNode;
     if (!track || !track.classList || !track.classList.contains('track')) return;
-    var x = track._x || 0, vis = row.clientWidth - 40, l = el.offsetLeft, r = l + el.offsetWidth;
+    var x = track._x || 0, vis = row.clientWidth - 40, l = P.lead(el, track), r = l + el.offsetWidth;   // from the row's start
     if (r > x + vis) x = r - vis; else if (l < x) x = l;
     x = Math.max(0, Math.round(x));
-    if (x !== (track._x || 0)) { track._x = x; track.style.transform = 'translate3d(' + (-x) + 'px,0,0)'; }
+    if (x !== (track._x || 0)) { track._x = x; P.slideX(track, x); }
   }
 
   function moveRow(dir) {
@@ -220,7 +220,7 @@
   }
 
   /* ---------- editing the apps row (hold OK → Move) ---------- */
-  function startMove(key) { H.editing = key; H.paintFocus(); P.UI.toast('Use ◀ ▶ to move · OK when done'); }
+  function startMove(key) { H.editing = key; H.paintFocus(); P.UI.toast(P.t('Use ◀ ▶ to move · OK when done')); }
   function moveTile(dir) {
     var row = P.S.get('row').slice(), shown = P.Apps.row().map(function (it) { return it.key; });
     var i = shown.indexOf(H.editing), j = i + dir;
@@ -234,7 +234,7 @@
     P.S.set('row', P.S.get('row').filter(function (k) { return k !== key; }));
     H.renderApps();
     var list = itemsOf('apps'); H.focus('apps', list[0] && list[0].dataset.key);
-    P.UI.toast('Removed from the row. It stays in All apps');
+    P.UI.toast(P.t('Removed from the row. It stays in All apps'));
   };
 
   /* ---------- OK and hold OK ---------- */
@@ -252,10 +252,10 @@
     if (H.row === 'apps') {
       var it = P.Apps.items[k];
       if (!hold) { P.Apps.open(it); return; }
-      var ops = [{ label: 'Move', icon: 'move', act: function () { startMove(k); } },
-        { label: 'Remove from row', icon: 'eyeOff', act: function () { H.removeFromRow(k); } }];
-      if (it.kind === 'hdmi') ops.push({ label: 'Change HDMI port', icon: 'settop', act: function () { P.Settings.open('inputs'); } });
-      ops.push({ label: 'All apps', icon: 'grid', act: function () { P.AllApps.open(); } });
+      var ops = [{ label: P.t('Move'), icon: 'move', act: function () { startMove(k); } },
+        { label: P.t('Remove from row'), icon: 'eyeOff', act: function () { H.removeFromRow(k); } }];
+      if (it.kind === 'hdmi') ops.push({ label: P.t('Change HDMI port'), icon: 'settop', act: function () { P.Settings.open('inputs'); } });
+      ops.push({ label: P.t('All apps'), icon: 'grid', act: function () { P.AllApps.open(); } });
       P.UI.menu(cur, P.Apps.label(it), ops);
       return;
     }
@@ -266,20 +266,20 @@
     }
     if (H.row === 'cw') {
       if (k === 'cw:connect') { P.Settings.plexSignIn(); return; }
-      if (k === 'cw:retry') { P.Plex.refresh(); P.UI.toast('Trying again…'); return; }
+      if (k === 'cw:retry') { P.Plex.refresh(); P.UI.toast(P.t('Trying again…')); return; }
       var card = P.Plex.items.filter(function (c) { return 'cw:' + c.key === k; })[0]; if (!card) return;
       if (!hold) { P.Plex.open(card); return; }
-      var rest = (card.type === 'episode' ? [{ label: 'Episodes', icon: 'list', act: function () { P.Show.open(card); } }] : []).concat([
-        { label: 'Open in the Plex app', icon: 'grid', act: function () { P.Plex.openApp(card); } },
-        { label: 'Remove from Continue Watching', icon: 'eyeOff', act: function () { P.Plex.hide(card); } },
-        { label: card.type === 'episode' ? 'Hide this show' : 'Hide this movie', icon: 'eyeOff', act: function () { P.Plex.hideAll(card); } }]);
-      if (!card.copies || card.copies.length < 2) { P.UI.menu(cur, card.title, [{ label: 'Play', icon: 'play', act: function () { P.Plex.open(card); } }].concat(rest)); return; }
+      var rest = (card.type === 'episode' ? [{ label: P.t('Episodes'), icon: 'list', act: function () { P.Show.open(card); } }] : []).concat([
+        { label: P.t('Open in the Plex app'), icon: 'grid', act: function () { P.Plex.openApp(card); } },
+        { label: P.t('Remove from Continue Watching'), icon: 'eyeOff', act: function () { P.Plex.hide(card); } },
+        { label: P.t(card.type === 'episode' ? 'Hide this show' : 'Hide this movie'), icon: 'eyeOff', act: function () { P.Plex.hideAll(card); } }]);
+      if (!card.copies || card.copies.length < 2) { P.UI.menu(cur, card.title, [{ label: P.t('Play'), icon: 'play', act: function () { P.Plex.open(card); } }].concat(rest)); return; }
       // the title is on your server more than once: one Play row per version, the one that would play first
       P.Plex.versions(card).then(function (vs) {
         var first = P.Plex.choose(card, vs).play.key;
         vs.sort(function (a, b) { return (b.key === first) - (a.key === first); });
         P.UI.menu(cur, card.title, vs.map(function (v) {
-          return { label: 'Play · ' + P.esc(v.label), icon: 'play', act: function () { P.Plex.open(card, v.key); } };
+          return { label: P.t('Play') + ' · ' + P.esc(v.label), icon: 'play', act: function () { P.Plex.open(card, v.key); } };
         }).concat(rest));
       });
     }
@@ -310,6 +310,7 @@
     H.applyTheme();
     H.tick(); setInterval(H.tick, 10000);
     setInterval(H.applyTheme, 60000);
+    P.translatePage();
     H.applyFolds(); H.renderApps(); H.renderMatchesRow(); H.renderCW(); H.renderStrip();
     stripT = setInterval(rotateStrip, 6000);
     setInterval(function () { if (!P.Football.live().length) H.renderStrip(); }, 30000); // countdown

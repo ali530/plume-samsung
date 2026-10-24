@@ -34,7 +34,7 @@
     });
     A.items['hdmi:ps5'] = { key: 'hdmi:ps5', kind: 'hdmi', name: 'PS5', glyphIcon: 'gamepad', installed: true };
     A.items['hdmi:bein'] = { key: 'hdmi:bein', kind: 'hdmi', name: 'beIN', word: 'beIN', installed: true };
-    A.items['matches'] = { key: 'matches', kind: 'matches', name: 'Matches', glyphIcon: 'ball', installed: true };
+    A.items['matches'] = { key: 'matches', kind: 'matches', name: P.t('Matches'), glyphIcon: 'ball', installed: true };
   }
   addCatalog();
 
@@ -115,18 +115,18 @@
   A.open = function (it) {
     if (it.kind === 'matches') { P.Centre.open(); return; }
     if (it.kind === 'hdmi') { A.switchTo(it.key); return; }
-    P.TV.launchAndReturn(it.ids, function () {}, function () { P.UI.toast("Couldn't open " + it.name); });
+    P.TV.launchAndReturn(it.ids, function () {}, function () { P.UI.toast(P.t("Couldn't open {name}", { name: it.name })); });
   };
 
   A.switchTo = function (key) {
     var it = A.items[key], port = A.port(key), method = 'inside';
     P.TV.switchInput(port, method, function (how) {
       if (how === 'inside') P.UI.inputView(it.name, port);
-      else if (how === 'test') P.UI.toast('Switching to ' + it.name + ' (HDMI ' + port + ')');
+      else if (how === 'test') P.UI.toast(P.t('Switching to {name} (HDMI {port})', { name: it.name, port: port }));
     }, function (why, connected) {
       P.log('switch failed', why);
-      P.UI.toast(connected === false ? 'Nothing is connected to HDMI ' + port + '. Check Settings → Inputs'
-        : "Couldn't switch to HDMI " + port + '. Try the other method in Settings → Inputs');
+      P.UI.toast(connected === false ? P.t('Nothing is connected to HDMI {port}. Check Settings → Inputs', { port: port })
+        : P.t("Couldn't switch to HDMI {port}. Try the other method in Settings → Inputs", { port: port }));
     });
   };
 
@@ -237,13 +237,13 @@
   A.iconStatus = function (appId) {
     var it = null;
     Object.keys(A.items).forEach(function (k) { if ((A.items[k].ids || []).indexOf(appId) >= 0) it = A.items[k]; });
-    if (!it) return 'Not shown';
-    if (it.ids[0] !== appId) return 'Another copy opens';
-    if (it.own) return 'Your picture';
-    if (it._glyph) return 'Logo from its icon';
-    if (it._iconFailed) return "TV won't share the icon";
-    if (it.icon) return 'Icon shown as it is';
-    return 'No icon';
+    if (!it) return P.t('Not shown');
+    if (it.ids[0] !== appId) return P.t('Another copy opens');
+    if (it.own) return P.t('Your picture');
+    if (it._glyph) return P.t('Logo from its icon');
+    if (it._iconFailed) return P.t("TV won't share the icon");
+    if (it.icon) return P.t('Icon shown as it is');
+    return P.t('No icon');
   };
 
   /* make a colour readable on the current background */

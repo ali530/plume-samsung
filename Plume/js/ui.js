@@ -13,8 +13,12 @@
     var top = U.top(); if (top && top.resume) top.resume();
   };
   U.top = function () { return U.layers[U.layers.length - 1]; };
+  /* in Arabic the screen is mirrored, so ◀ and ▶ swap: ◀ moves toward the end of a row. The players keep
+     ◀ = back and ▶ = forward (their time bar runs left to right in every language). */
+  var KEEP = { player: true, youtube: true, input: true };
   U.key = function (name) {
     var top = U.top();
+    if (P.rtl && top && !KEEP[top.name]) name = name === 'left' ? 'right' : name === 'right' ? 'left' : name;
     if (top && top.key) top.key(name);
   };
 
@@ -89,7 +93,7 @@
   U.banner = function (o) {
     var b = P.$('#banner');
     b.innerHTML = '<div class="b-ic">' + P.icon('bell') + '</div><div class="b-txt"><b>' + P.esc(o.title) + '</b><span>' + P.esc(o.sub || '') + '</span></div>' +
-      '<div class="b-keys"><span class="key">OK</span> ' + P.esc(o.okLabel || 'Open') + '<span class="key">Back</span> Dismiss</div>';
+      '<div class="b-keys"><span class="key">OK</span> ' + P.esc(o.okLabel || P.t('Open')) + '<span class="key">' + P.t('Back') + '</span> ' + P.t('Dismiss') + '</div>';
     b.hidden = false;
     requestAnimationFrame(function () { b.classList.add('on'); });
     var layer = {
@@ -109,7 +113,7 @@
   /* ---------- an HDMI input shown inside Plume ---------- */
   U.inputView = function (name, port) {
     document.body.classList.add('input-on');
-    U.toast(name + ' · HDMI ' + port + ' — press Back to return to Plume', 3500);
+    U.toast(P.t('{name} · HDMI {port} — press Back to return to Plume', { name: name, port: port }), 3500);
     var layer = { name: 'input', key: function (k) { if (k === 'back') { P.TV.closeInside(); document.body.classList.remove('input-on'); U.pop(layer); } } };
     U.push(layer);
   };

@@ -16,7 +16,7 @@
 
   function score(m) { return [parseInt(m.home.score, 10) || 0, parseInt(m.away.score, 10) || 0]; }
   function isHT(m) { return m.state === 'in' && /half_?time/i.test(m.statusName); }
-  function who(e) { return e ? e.who + (e.min ? ' ' + e.min : '') : ''; }
+  function who(e) { return e ? P.ltr(e.who + (e.min ? ' ' + e.min : '')) : ''; }
 
   /* compare with what Plume saw last time */
   A.check = function () {
@@ -32,7 +32,7 @@
           ['home', 'away'].forEach(function (side, i) {
             if (now.sc[i] > before.sc[i] && what.goal) {
               var g = m.goals.filter(function (x) { return x.side === side; }).slice(-1)[0];
-              out.push({ at: t, kind: 'Goal', m: m, team: m[side], who: g ? who(g) + (g.pen ? ' (pen)' : '') + (g.og ? ' (og)' : '') : '' });
+              out.push({ at: t, kind: 'Goal', m: m, team: m[side], who: g ? who(g) + (g.pen ? P.t(' (pen)') : '') + (g.og ? P.t(' (og)') : '') : '' });
             }
           });
           if (now.reds > before.reds && what.red) (m.reds || []).slice(before.reds).forEach(function (r) {
@@ -54,11 +54,11 @@
 
   function html(a) {
     var m = a.m, F = P.Football, sc = score(m);
-    var head = a.team ? P.esc(a.kind) + ' · ' + P.esc(a.team.short) : P.esc(a.kind);
+    var head = a.team ? P.esc(P.t(a.kind)) + ' · ' + P.esc(P.team(a.team, true)) : P.esc(P.t(a.kind));
     var line = (a.who ? P.esc(a.who) + ' · ' : '') + P.esc(m.compName) + (m.state === 'in' && F.statusText(m) && a.kind !== 'Half time' ? ' · ' + P.esc(F.statusText(m)) : '');
     var cls = a.kind === 'Goal' ? ' goal' : a.kind === 'Red card' ? ' red' : '';
     return '<div class="al-k' + cls + '">' + (a.kind === 'Goal' ? P.icon('ball') : a.kind === 'Red card' ? '<i class="card"></i>' : '') + head + '</div>' +
-      '<div class="al-m">' + P.UI.crest(m.home, 'sm') + '<span>' + P.esc(m.home.short) + '</span><b>' + sc[0] + ' – ' + sc[1] + '</b><span>' + P.esc(m.away.short) + '</span>' + P.UI.crest(m.away, 'sm') + '</div>' +
+      '<div class="al-m">' + P.UI.crest(m.home, 'sm') + '<span>' + P.esc(P.team(m.home, true)) + '</span><b>' + sc[0] + ' – ' + sc[1] + '</b><span>' + P.esc(P.team(m.away, true)) + '</span>' + P.UI.crest(m.away, 'sm') + '</div>' +
       '<div class="al-l">' + line + '</div>';
   }
   function next() {

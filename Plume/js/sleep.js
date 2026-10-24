@@ -49,13 +49,13 @@
   function tick() {
     var d = new Date();
     P.$('#zClock').textContent = P.clockText(d);
-    P.$('#zDate').innerHTML = P.esc(P.dateText(d)) + (P.Weather.now ? '<span class="z-w">' + P.Weather.html() + '<span>' + P.esc(P.S.get('city')) + '</span></span>' : '');
+    P.$('#zDate').innerHTML = P.esc(P.dateText(d)) + (P.Weather.now ? '<span class="z-w">' + P.Weather.html() + '<span>' + P.esc(P.t(P.S.get('city'))) + '</span></span>' : '');
     var F = P.Football, list = F.day(0).filter(function (m) { return m.state === 'in' || (m.state === 'pre' && m.date > Date.now()); });
     list.sort(function (a, b) { return (a.state === 'in' ? 0 : 1) - (b.state === 'in' ? 0 : 1) || (b.fav - a.fav) || (b.big - a.big) || (a.date - b.date); });
     P.$('#zMatches').innerHTML = list.slice(0, 3).map(function (m) {
       var st = '<span class="z-live">' + (m.state === 'in' ? P.esc(F.statusText(m)) : '') + '</span>';
-      return '<div class="z-m">' + st + '<span class="h">' + P.esc(m.home.short) + '</span>' + P.UI.crest(m.home, 'sm') +
-        '<b>' + F.centreText(m) + '</b>' + P.UI.crest(m.away, 'sm') + '<span>' + P.esc(m.away.short) + '</span></div>';
+      return '<div class="z-m">' + st + '<span class="h">' + P.esc(P.team(m.home, true)) + '</span>' + P.UI.crest(m.home, 'sm') +
+        '<b>' + F.centreText(m) + '</b>' + P.UI.crest(m.away, 'sm') + '<span>' + P.esc(P.team(m.away, true)) + '</span></div>';
     }).join('');
   }
 

@@ -2,6 +2,7 @@
 (function () {
   var PREFIX = 'plume.';
   var DEFAULTS = {
+    lang: 'en',                    // en | ar (Arabic: right to left)
     theme: 'auto',                 // auto | light | dark   (auto: dark from sunset to sunrise)
     wpLight: 'rockies-day',
     wpDark: 'rockies-dusk',

@@ -17,27 +17,27 @@
     var done = e.viewCount > 0 && !e.viewOffset, part = e.viewOffset && e.duration;
     var bits = [];
     if (part) bits.push(P.minutesLeft(e.duration - e.viewOffset));
-    else if (e.duration) bits.push(Math.round(e.duration / 60000) + ' min');
-    if (done) bits.push('Watched');
+    else if (e.duration) bits.push(P.t('{n} min', { n: Math.round(e.duration / 60000) }));
+    if (done) bits.push(P.t('Watched'));
     return bits.join(' · ');
   }
 
   function render() {
     if (!st) return;
     var r = root();
-    var head = '<div class="c-head"><button class="cbtn" data-z="back">' + P.icon('back') + 'Back</button><h1>' + P.esc(st.title) + '</h1></div>';
+    var head = '<div class="c-head"><button class="cbtn" data-z="back">' + P.icon('back') + P.t('Back') + '</button><h1>' + P.esc(st.title) + '</h1></div>';
     var tabs = '<div class="sh-tabs">' + st.seasons.map(function (s, i) {
-      return '<button class="day' + (i === st.si ? ' on' : '') + '" data-z="s' + i + '">' + P.esc(s.title || ('Season ' + s.index)) + '</button>';
+      return '<button class="day' + (i === st.si ? ' on' : '') + '" data-z="s' + i + '">' + P.esc(P.t(s.title || ('Season ' + s.index))) + '</button>';
     }).join('') + '</div>';
     var list;
-    if (st.loading) list = '<div class="c-empty">Loading…</div>';
+    if (st.loading) list = '<div class="c-empty">' + P.t('Loading…') + '</div>';
     else if (st.error) list = '<div class="c-empty">' + P.esc(st.error) + '</div>';
     else list = st.eps.map(function (e, i) {
       var pct = e.viewOffset && e.duration ? Math.round(e.viewOffset / e.duration * 100) : (e.viewCount > 0 ? 100 : 0);
       return '<div class="sh-ep' + (e.ratingKey === st.current ? ' here' : '') + '" data-z="e' + i + '">' +
         '<div class="sh-th">' + (e.thumb ? '<img src="' + P.esc(img(e.thumb, 384, 216)) + '" alt="" decoding="async">' : '') +
         (pct ? '<div class="bar"><i style="width:' + pct + '%"></i></div>' : '') + '</div>' +
-        '<div class="sh-tx"><div class="sh-t">E' + e.index + ' · ' + P.esc(e.title) + '</div>' +
+        '<div class="sh-tx"><div class="sh-t">' + P.t('E') + e.index + ' · ' + P.esc(e.title) + '</div>' +
         '<div class="sh-s">' + P.esc(epLine(e)) + '</div>' +
         (e.summary ? '<div class="sh-d">' + P.esc(e.summary) + '</div>' : '') + '</div></div>';
     }).join('');
@@ -69,7 +69,7 @@
       if (at < 0) at = st.eps.findIndex(function (e) { return !(e.viewCount > 0 && !e.viewOffset); });   // first not watched
       st.ei = Math.max(0, at);
       render();
-    }).catch(function () { if (st === mine) { st.loading = false; st.error = "Couldn't reach your Plex server"; render(); } });
+    }).catch(function () { if (st === mine) { st.loading = false; st.error = P.t("Couldn't reach your Plex server"); render(); } });
   }
 
   function play(e) {

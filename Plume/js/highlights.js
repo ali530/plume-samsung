@@ -138,19 +138,19 @@
   H.play = function (v) { if (P.S.get('highlightsIn') === 'plume' && P.YT) P.YT.open(v); else H.playApp(v); };
   H.playApp = function (v) {
     var it = P.Apps.items['app:youtube'], ids = (it && it.ids.length ? it.ids : ['111299001912', 'com.samsung.tv.cobalt-yt']);
-    P.TV.launchWithData(ids[0], { PAYLOAD: JSON.stringify({ values: 'v=' + v.id }) }, null, function () { P.UI.toast("Couldn't open YouTube"); });
+    P.TV.launchWithData(ids[0], { PAYLOAD: JSON.stringify({ values: 'v=' + v.id }) }, null, function () { P.UI.toast(P.t("Couldn't open YouTube")); });
   };
 
   /* the menu: the videos found, best first */
   H.open = function (m, anchor) {
-    P.UI.toast('Looking for highlights…', 2500);
+    P.UI.toast(P.t('Looking for highlights…'), 2500);
     H.find(m).then(function (list) {
-      if (!list.length) { P.UI.toast('No highlights yet · they usually go up within a couple of hours of the final whistle', 5000); return; }
-      P.UI.menu(anchor, 'Highlights · ' + m.home.short + ' ' + P.Football.centreText(m) + ' ' + m.away.short, list.map(function (v, i) {
-        return { label: '<bdi>' + P.esc(v.title) + '</bdi><small><bdi>' + P.esc(v.channel) + '</bdi>' + (i === 0 ? ' · best match' : '') + '</small>', icon: 'play', act: function () { H.play(v); } };
+      if (!list.length) { P.UI.toast(P.t('No highlights yet · they usually go up within a couple of hours of the final whistle'), 5000); return; }
+      P.UI.menu(anchor, P.t('Highlights') + ' · ' + P.team(m.home, true) + ' ' + P.Football.centreText(m) + ' ' + P.team(m.away, true), list.map(function (v, i) {
+        return { label: '<bdi>' + P.esc(v.title) + '</bdi><small><bdi>' + P.esc(v.channel) + '</bdi>' + (i === 0 ? ' · ' + P.t('best match') : '') + '</small>', icon: 'play', act: function () { H.play(v); } };
       }), true);
       P.UI.toast('', 1);
-    }).catch(function (e) { P.UI.toast("Couldn't search YouTube · " + P.esc(e.message), 5000); });
+    }).catch(function (e) { P.UI.toast(P.t("Couldn't search YouTube") + ' · ' + P.esc(e.message), 5000); });
   };
 
   // your YouTube key, from youtube-key.txt next to index.html (see the README)

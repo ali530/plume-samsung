@@ -19,38 +19,39 @@
     return {
       main: { title: 'Settings', rows: [
         { section: 'Look' },
+        { label: 'Language', value: function () { return get('lang') === 'ar' ? 'العربية' : 'English'; },
+          act: function () { set('lang', get('lang') === 'ar' ? 'en' : 'ar'); P.UI.toast(get('lang') === 'ar' ? 'العربية…' : 'English…', 1500); setTimeout(function () { location.reload(); }, 400); },
+          note: 'Arabic turns the whole screen right to left. Plume restarts to change it' },
         { label: 'Theme', value: function () { return THEME[get('theme')]; }, act: cycle('theme', ['auto', 'light', 'dark']), note: 'Automatic turns dark at sunset' },
         { label: 'Light mode wallpaper', value: function () { return P.Home.WALL_NAMES[get('wpLight')]; }, act: cycle('wpLight', ['rockies-day', 'plain']) },
         { label: 'Dark mode wallpaper', value: function () { return P.Home.WALL_NAMES[get('wpDark')]; }, act: cycle('wpDark', ['rockies-dusk', 'plain']) },
         { label: 'Logos', value: function () { return get('logos') === 'mono' ? 'Mono' : 'Colour'; }, act: cycle('logos', ['mono', 'colour']) },
         { label: 'App names', value: function () { return NAMES[get('names')]; }, act: cycle('names', ['focus', 'always', 'never']) },
         { section: 'Home screen' },
-        { label: 'Apps in row', value: function () { return P.Apps.row().length + ' apps'; }, open: 'row' },
-        { label: 'Rearrange the row', value: function () { return 'Hold OK on a tile'; }, act: function () { S.close(); P.Home.focus('apps'); P.UI.toast('Hold OK on a tile, then choose Move'); } },
+        { label: 'Apps in row', value: function () { return P.count(P.Apps.row().length, 'app', 'apps'); }, open: 'row' },
         { label: 'Matches row on home', value: function () { return get('matchesRow') ? 'On' : 'Off'; }, act: function () { set('matchesRow', !get('matchesRow')); }, toggle: function () { return get('matchesRow'); } },
         { section: 'Plex' },
         { label: 'Account', value: function () { return plex ? plex.user : 'Sign in'; }, act: function () { if (get('plex')) S.plexSignOut(); else S.plexSignIn(); } },
         plex ? { label: 'Default quality', value: function () { return { last: 'Last played', '4k': '4K', '1080': '1080p' }[get('plexCopy')]; }, act: cycle('plexCopy', ['last', '4k', '1080']) } : null,
-        plex ? { label: 'Hidden', value: function () { var n = P.Plex.hiddenList().length; return n ? n + (n === 1 ? ' title' : ' titles') : 'None'; }, open: 'hidden' } : null,
+        plex ? { label: 'Hidden', value: function () { var n = P.Plex.hiddenList().length; return n ? P.count(n, 'title', 'titles') : 'None'; }, open: 'hidden' } : null,
         plex ? { label: 'Next episode', value: function () { return get('autoNext') ? 'Plays automatically' : 'Ask first'; }, act: function () { set('autoNext', !get('autoNext')); } } : null,
         { section: 'Football' },
-        { label: 'Competitions', value: function () { var c = get('comps'); return Object.keys(c).filter(function (k) { return c[k]; }).length + ' of ' + F.COMPS.length; }, open: 'comps' },
+        { label: 'Competitions', value: function () { var c = get('comps'); return P.t('{a} of {b}', { a: Object.keys(c).filter(function (k) { return c[k]; }).length, b: F.COMPS.length }); }, open: 'comps' },
         { label: 'Match alerts', value: function () { return get('matchAlerts') ? 'On' : 'Off'; }, open: 'alerts' },
         { label: 'Highlights play in', value: function () { return get('highlightsIn') === 'plume' ? 'Plume' : 'YouTube app'; }, act: function () { set('highlightsIn', get('highlightsIn') === 'plume' ? 'app' : 'plume'); } },
-        { label: 'YouTube key for highlights', value: function () { return P.Highlights.key ? 'Set' : 'Not set · plain search'; }, act: function () {} },
-        { label: 'Your teams', value: function () { return get('favs').length ? get('favs').join(', ') : 'None'; }, open: 'favs' },
+        { label: 'Your teams', value: function () { return get('favs').length ? get('favs').map(function (n) { return P.team({ name: n }); }).join(P.rtl ? '، ' : ', ') : 'None'; }, open: 'favs' },
         { section: 'Inputs' },
         { label: 'PS5', value: function () { return 'HDMI ' + get('ps5Port'); }, act: cycle('ps5Port', [1, 2, 3, 4]) },
         { label: 'beIN', value: function () { return 'HDMI ' + get('beinPort'); }, act: cycle('beinPort', [1, 2, 3, 4]) },
         { label: 'Back to Plume when an app closes', value: function () { return ''; }, toggle: function () { return get('returnToPlume'); },
           act: function () { set('returnToPlume', !get('returnToPlume')); }, note: 'Works only with apps that let the TV know they closed' },
         { section: 'Sleep screen' },
-        { label: 'Start after', value: function () { var m = get('sleepMin'); return m ? String(m).replace('.5', '½') + ' min' : 'Never'; }, act: cycle('sleepMin', SLEEP) },
+        { label: 'Start after', value: function () { var m = get('sleepMin'); return m ? P.t('{n} min', { n: String(m).replace('.5', '½') }) : 'Never'; }, act: cycle('sleepMin', SLEEP) },
         { label: 'Preview the sleep screen', value: function () { return ''; }, act: function () { S.close(); P.Sleep.show(); } },
         { section: 'Weather' },
-        { label: 'City', value: function () { return get('city'); }, open: 'city' },
+        { label: 'City', value: function () { return P.t(get('city')); }, open: 'city' },
         { section: 'About' },
-        { label: 'Plume for Samsung', value: function () { return 'Version 2.10.1'; }, act: function () {} }
+        { label: 'Plume for Samsung', value: function () { return P.t('Version {v}', { v: '2.11' }); }, act: function () {} }
       ].filter(Boolean) },
 
       row: { title: 'Apps in row', rows: P.Apps.all().map(function (it) {
@@ -78,10 +79,10 @@
             act: function () { var x = JSON.parse(JSON.stringify(get('alertWho'))); x[w[0]] = !x[w[0]]; set('alertWho', x); } };
         }),
         [{ label: 'Every match of…', value: function () { var c = get('alertComps'), n = Object.keys(c).filter(function (k) { return c[k]; });
-            return n.length ? n.map(function (k) { return (F.byKey[k] || {}).short || k; }).join(', ') : 'None'; }, open: 'alertComps' },
+            return n.length ? n.map(function (k) { return (F.byKey[k] || {}).short || k; }).join(P.rtl ? '، ' : ', ') : 'None'; }, open: 'alertComps' },
          { section: 'Where' },
          { label: 'Over films and shows in Plume', sub: 'Small, in the bottom corner. Off: they wait until you stop', toggle: function () { return get('alertOverFilms'); }, act: function () { set('alertOverFilms', !get('alertOverFilms')); } },
-         { label: 'Show each alert for', value: function () { return get('alertSecs') + ' seconds'; }, act: cycle('alertSecs', [6, 10, 15]) }]) },
+         { label: 'Show each alert for', value: function () { return P.t('{n} seconds', { n: get('alertSecs') }); }, act: cycle('alertSecs', [6, 10, 15]) }]) },
 
       alertComps: { title: 'Every match of…', note: 'Every match Plume shows for these competitions gives alerts, whoever plays. A busy day means many pop-ups.', rows: F.COMPS.map(function (c) {
         return { label: c.name, toggle: function () { return !!get('alertComps')[c.k]; },
@@ -89,12 +90,12 @@
       }) },
 
       favs: { title: 'Your teams', note: 'Their matches always show, come first, and stay on the strip while live.', rows: F.teamChoices().map(function (n) {
-        return { label: n, toggle: function () { return get('favs').indexOf(n) >= 0; },
+        return { label: P.team({ name: n }), toggle: function () { return get('favs').indexOf(n) >= 0; },
           act: function () { var f = get('favs'); set('favs', f.indexOf(n) >= 0 ? f.filter(function (x) { return x !== n; }) : f.concat([n])); } };
       }) },
 
       city: { title: 'City', rows: P.Weather.cities.map(function (c) {
-        return { label: c, toggle: function () { return get('city') === c; }, radio: true, act: function () { set('city', c); P.Weather.refresh(); } };
+        return { label: P.t(c), toggle: function () { return get('city') === c; }, radio: true, act: function () { set('city', c); P.Weather.refresh(); } };
       }) },
 
       report: { title: 'Apps the TV reports', note: 'What the TV tells Plume about each app. "No icon" means the TV gives Plume no picture for it.',
@@ -117,7 +118,7 @@
       }) },
       server: { title: 'Plex server', rows: ((plex && plex.servers) || []).map(function (n) {
         return { label: n, radio: true, toggle: function () { return ((get('plex') || {}).server || {}).name === n; },
-          act: function () { P.UI.toast('Connecting to ' + P.esc(n) + '…'); P.Plex.useServer(n).then(function () { S.render(); }, function (e) { P.UI.toast(P.esc(e.message)); }); } };
+          act: function () { P.UI.toast(P.t('Connecting to {name}…', { name: P.esc(n) })); P.Plex.useServer(n).then(function () { S.render(); }, function (e) { P.UI.toast(P.esc(e.message)); }); } };
       }) }
     };
   }
@@ -125,13 +126,13 @@
   S.render = function () {
     var pg = pages()[S.page];
     var rows = pg.rows;
-    var html = '<div class="s-head">' + (S.page !== 'main' ? P.icon('back') : '') + '<h2>' + P.esc(pg.title) + '</h2></div>' +
-      (pg.note ? '<p class="s-note">' + P.esc(pg.note) + '</p>' : '') + '<div class="s-list" id="sList">';
+    var html = '<div class="s-head">' + (S.page !== 'main' ? P.icon('back') : '') + '<h2>' + P.esc(P.t(pg.title)) + '</h2></div>' +
+      (pg.note ? '<p class="s-note">' + P.esc(P.t(pg.note)) + '</p>' : '') + '<div class="s-list" id="sList">';
     var n = 0;
     rows.forEach(function (r) {
-      if (r.section) { html += '<div class="s-sec">' + P.esc(r.section) + '</div>'; return; }
-      var val = r.toggle ? '<span class="sw' + (r.radio ? ' radio' : '') + (r.toggle() ? ' on' : '') + '"><i></i></span>' : '<span class="val">' + P.esc(r.value ? r.value() : '') + (r.open ? ' ›' : '') + '</span>';
-      html += '<div class="s-row" data-r="' + (n++) + '"><span class="lab">' + P.esc(r.label) + (r.sub ? '<small>' + P.esc(r.sub) + '</small>' : '') + '</span>' + val + '</div>';
+      if (r.section) { html += '<div class="s-sec">' + P.esc(P.t(r.section)) + '</div>'; return; }
+      var val = r.toggle ? '<span class="sw' + (r.radio ? ' radio' : '') + (r.toggle() ? ' on' : '') + '"><i></i></span>' : '<span class="val">' + P.esc(P.t(r.value ? r.value() : '')) + (r.open ? ' ›' : '') + '</span>';
+      html += '<div class="s-row" data-r="' + (n++) + '"><span class="lab">' + P.esc(P.t(r.label)) + (r.sub ? '<small>' + P.esc(P.t(r.sub)) + '</small>' : '') + '</span>' + val + '</div>';
     });
     html += '</div><div class="s-foot" id="sFoot"></div>';
     root().innerHTML = html;
@@ -149,7 +150,7 @@
       if (top - box.scrollTop < 30) box.scrollTop = Math.max(0, top - 80);
     }
     var r = list[S.at];
-    P.$('#sFoot').textContent = r && r.note ? r.note : '';
+    P.$('#sFoot').textContent = r && r.note ? P.t(r.note) : '';
   }
 
   var layer = {
@@ -186,26 +187,26 @@
   /* ---------- Plex sign-in ---------- */
   S.plexSignIn = function () {
     var d = P.UI.dialog({
-      title: 'Connect Plex', wide: true,
-      body: '<div class="link"><div class="link-l"><p>On your phone or computer, go to</p><div class="link-url">plex.tv/link</div><p>and enter this code:</p>' +
-        '<div class="link-code" id="plexCode">····</div><p class="dim" id="plexStatus">Getting a code…</p></div><div class="link-r">' + P.UI.qr('https://plex.tv/link', 240) + '<p class="dim">Scan to open plex.tv/link</p></div></div>',
-      buttons: [{ label: 'Cancel', act: function () { P.Plex.cancelLink(); } }],
+      title: P.t('Connect Plex'), wide: true,
+      body: '<div class="link"><div class="link-l"><p>' + P.t('On your phone or computer, go to') + '</p><div class="link-url">plex.tv/link</div><p>' + P.t('and enter this code:') + '</p>' +
+        '<div class="link-code" id="plexCode">····</div><p class="dim" id="plexStatus">' + P.t('Getting a code…') + '</p></div><div class="link-r">' + P.UI.qr('https://plex.tv/link', 240) + '<p class="dim">' + P.t('Scan to open plex.tv/link') + '</p></div></div>',
+      buttons: [{ label: P.t('Cancel'), act: function () { P.Plex.cancelLink(); } }],
       onClose: function () { P.Plex.cancelLink(); }
     });
     P.Plex.startLink(function (code) {
       var c = P.$('#plexCode'); if (c) c.textContent = code;
-      var s = P.$('#plexStatus'); if (s) s.textContent = 'Waiting for you to enter the code…';
+      var s = P.$('#plexStatus'); if (s) s.textContent = P.t('Waiting for you to enter the code…');
     }, function (user, server) {
       d.close();
-      P.UI.toast('Signed in to Plex as ' + P.esc(user) + ' · ' + P.esc(server));
+      P.UI.toast(P.t('Signed in to Plex as {user}', { user: P.esc(user) }) + ' · ' + P.esc(server));
       if (S.isOpen()) S.render();
     }, function (msg) {
-      var s = P.$('#plexStatus'); if (s) s.textContent = msg;
+      var s = P.$('#plexStatus'); if (s) s.textContent = P.t(msg);
     });
   };
   S.plexSignOut = function () {
-    P.UI.dialog({ title: 'Sign out of Plex?', body: '<p>Continue Watching will be empty until you sign in again.</p>',
-      buttons: [{ label: 'Sign out', act: function () { P.Plex.signOut(); S.render(); } }, { label: 'Cancel' }], start: 1 });
+    P.UI.dialog({ title: P.t('Sign out of Plex?'), body: '<p>' + P.t('Continue Watching will be empty until you sign in again.') + '</p>',
+      buttons: [{ label: P.t('Sign out'), act: function () { P.Plex.signOut(); S.render(); } }, { label: P.t('Cancel') }], start: 1 });
   };
   S.isOpen = function () { return !root().hidden; };
 

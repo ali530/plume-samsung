@@ -5,36 +5,36 @@
   var C = { day: 0, zone: 'list', bar: RANGE + 1, at: 0, open_: false };
   var root = function () { return P.$('#centre'); };
   function dayLabel(off) {
-    if (off === 0) return 'Today'; if (off === -1) return 'Yesterday'; if (off === 1) return 'Tomorrow';
+    if (off === 0) return P.t('Today'); if (off === -1) return P.t('Yesterday'); if (off === 1) return P.t('Tomorrow');
     var d = P.dayStart(new Date(), off); return P.DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + P.MONTHS[d.getMonth()];
   }
 
   function remind(m) {
     var F = P.Football, on = F.toggleReminder(m);
-    P.UI.toast(on ? 'Reminder set · pops up 10 min before kick-off' : 'Reminder removed');
+    P.UI.toast(on ? P.t('Reminder set · pops up 10 min before kick-off') : P.t('Reminder removed'));
     C.render(); P.Home.renderStrip(); P.Home.renderMatchesRow();
   }
   function follow(m) {
     var on = P.Football.toggleFollow(m);
-    P.UI.toast(on ? 'Following · alerts for this match' + (P.S.get('matchAlerts') ? '' : ' (Match alerts are off in Settings)') : 'Stopped following');
+    P.UI.toast(on ? P.t('Following · alerts for this match') + (P.S.get('matchAlerts') ? '' : P.t(' (Match alerts are off in Settings)')) : P.t('Stopped following'));
     C.render(); P.Home.renderStrip(); P.Home.renderMatchesRow();
   }
   /* what OK does on a match: a menu, with the match's details first */
   C.act = function (m) {
     var F = P.Football, anchor = P.$('#centre .mline.focus') || P.$('.mcard.focus');
     var second = null;
-    if (m.state === 'in') second = { label: 'Watch on beIN', icon: 'play', act: function () { P.Apps.switchTo('hdmi:bein'); } };
-    else if (m.state === 'post') second = { label: 'Watch highlights', icon: 'play', act: function () { P.Highlights.open(m, anchor); } };
-    else if (!/postpon|cancel/i.test(m.statusName)) second = { label: F.hasReminder(m) ? 'Remove reminder' : 'Remind me', icon: 'bell', act: function () { remind(m); } };
-    P.UI.menu(anchor, m.home.short + ' ' + F.centreText(m) + ' ' + m.away.short, [
-      { label: m.state === 'in' ? 'Live details' : 'Match details', icon: 'list', act: function () { if (!C.open_) C.open(m.id); C.openDetails(m); } },
+    if (m.state === 'in') second = { label: P.t('Watch on beIN'), icon: 'play', act: function () { P.Apps.switchTo('hdmi:bein'); } };
+    else if (m.state === 'post') second = { label: P.t('Watch highlights'), icon: 'play', act: function () { P.Highlights.open(m, anchor); } };
+    else if (!/postpon|cancel/i.test(m.statusName)) second = { label: F.hasReminder(m) ? P.t('Remove reminder') : P.t('Remind me'), icon: 'bell', act: function () { remind(m); } };
+    P.UI.menu(anchor, P.team(m.home, true) + ' ' + F.centreText(m) + ' ' + P.team(m.away, true), [
+      { label: m.state === 'in' ? P.t('Live details') : P.t('Match details'), icon: 'list', act: function () { if (!C.open_) C.open(m.id); C.openDetails(m); } },
       second,
       m.state === 'post' || /postpon|cancel/i.test(m.statusName) ? null
-        : { label: F.isFollowed(m) ? 'Stop following' : 'Follow · alerts for this match', icon: 'bell', act: function () { follow(m); } },
-      { label: 'Whole table', icon: 'grid', act: function () { if (!C.open_) C.open(m.id); C.sideComp = m.comp; C.openFull(); } }].filter(Boolean));
+        : { label: F.isFollowed(m) ? P.t('Stop following') : P.t('Follow · alerts for this match'), icon: 'bell', act: function () { follow(m); } },
+      { label: P.t('Whole table'), icon: 'grid', act: function () { if (!C.open_) C.open(m.id); C.sideComp = m.comp; C.openFull(); } }].filter(Boolean));
   };
   C.okLabel = function (m) {
-    return 'Details · ' + (m.state === 'in' ? 'Watch on beIN' : m.state === 'post' ? 'Highlights' : P.Football.hasReminder(m) ? 'Reminder' : 'Remind me');
+    return P.t('Details') + ' · ' + P.t(m.state === 'in' ? 'Watch on beIN' : m.state === 'post' ? 'Highlights' : P.Football.hasReminder(m) ? 'Reminder' : 'Remind me');
   };
 
   /* the matches in the order they're shown: grouped by competition (moving Down follows the screen, not kick-off times) */
@@ -46,19 +46,19 @@
   function detail(m) {
     var F = P.Football;
     if (!m) return '<div class="c-detail empty"></div>';
-    var st = F.statusText(m), when = m.state === 'pre' ? (m.date > Date.now() ? 'Kick-off in ' + P.until(m.date - Date.now()) : 'Kick-off ' + P.hhmm(m.date)) : st;
+    var st = F.statusText(m), when = m.state === 'pre' ? (m.date > Date.now() ? P.t('Kick-off in {t}', { t: P.until(m.date - Date.now()) }) : P.t('Kick-off {t}', { t: P.hhmm(m.date) })) : st;
     var goals = function (side) {
       return m.goals.filter(function (g) { return g.side === side; }).map(function (g) {
-        return '<div>' + P.esc(g.who) + ' ' + P.esc(g.min) + (g.pen ? ' (pen)' : '') + (g.og ? ' (og)' : '') + '</div>';
+        return '<div>' + P.esc(P.ltr(g.who + ' ' + g.min)) + (g.pen ? P.t(' (pen)') : '') + (g.og ? P.t(' (og)') : '') + '</div>';
       }).join('');
     };
     var gh = goals('home'), ga = goals('away');
     return '<div class="c-detail">' +
-      '<div class="d-comp">' + P.esc(m.compName) + (m.tag ? ' · ' + P.esc(m.tag) : '') + '</div>' +
-      '<div class="d-teams"><div class="d-team">' + P.UI.crest(m.home, 'lg') + '<span>' + P.esc(m.home.name) + '</span></div>' +
+      '<div class="d-comp">' + P.esc(m.compName) + (m.tag ? ' · ' + P.esc(P.t(m.tag)) : '') + '</div>' +
+      '<div class="d-teams"><div class="d-team">' + P.UI.crest(m.home, 'lg') + '<span>' + P.esc(P.team(m.home)) + '</span></div>' +
       '<div class="d-mid"><b class="' + (m.state === 'pre' ? 'ko' : '') + '">' + F.centreText(m) + '</b><span class="' + (m.state === 'in' ? 'live' : '') + '">' +
       (m.state === 'in' ? '<i class="dot"></i>' : '') + P.esc(when) + '</span></div>' +
-      '<div class="d-team">' + P.UI.crest(m.away, 'lg') + '<span>' + P.esc(m.away.name) + '</span></div></div>' +
+      '<div class="d-team">' + P.UI.crest(m.away, 'lg') + '<span>' + P.esc(P.team(m.away)) + '</span></div></div>' +
       ((gh || ga) ? '<div class="d-goals"><div>' + gh + '</div>' + P.icon('ball') + '<div class="r">' + ga + '</div></div>' : '') +
       (m.venue ? '<div class="d-venue">' + P.icon('pin') + P.esc(m.venue) + '</div>' : '') +
       '<div class="d-ok"><span class="key">OK</span>' + C.okLabel(m) + '</div></div>';
@@ -72,22 +72,22 @@
     var show = [], last = -1;
     rows.forEach(function (r, i) { if (!want[i]) return; if (last >= 0 && i > last + 1) show.push(null); show.push(r); last = i; });
     show = show.slice(0, 9);
-    return '<div class="c-table"><div class="t-head"><span>' + P.esc(title) + '</span><span class="cols"><i>P</i><i>GD</i><i>Pts</i></span></div>' +
+    return '<div class="c-table"><div class="t-head"><span>' + P.esc(title) + '</span><span class="cols"><i>' + P.t('P') + '</i><i>' + P.t('GD') + '</i><i>' + P.t('Pts') + '</i></span></div>' +
       show.map(function (r) {
         if (!r) return '<div class="t-gap">···</div>';
         var cls = (F.isFavName(r.name) ? ' fav' : '') + (ids.indexOf(r.id) >= 0 ? ' here' : '');
         return '<div class="t-row' + cls + '"><span class="rk">' + r.rank + '</span>' +
-          P.UI.crest({ logo: r.logo, abbr: r.abbr, color: '#7a7f87' }, 'xs') + '<span class="nm">' + P.esc(r.name) + '</span>' +
-          '<span class="cols"><i>' + r.played + '</i><i>' + (r.gd > 0 ? '+' : '') + r.gd + '</i><b>' + r.points + '</b></span></div>';
+          P.UI.crest({ logo: r.logo, abbr: r.abbr, color: '#7a7f87' }, 'xs') + '<span class="nm">' + P.esc(P.team(r)) + '</span>' +
+          '<span class="cols"><i>' + r.played + '</i><i>' + P.ltr((r.gd > 0 ? '+' : '') + r.gd) + '</i><b>' + r.points + '</b></span></div>';
       }).join('') + '</div>';
   }
   function roundRows(m, side) {
     var F = P.Football;
-    return '<div class="c-table"><div class="t-head"><span>' + P.esc(m.compName + ' · ' + side.stage) + '</span></div>' +
+    return '<div class="c-table"><div class="t-head"><span>' + P.esc(m.compName + ' · ' + P.t(side.stage)) + '</span></div>' +
       side.matches.slice(0, 8).map(function (x) {
         var when = x.state === 'pre' ? P.DAYS[x.date.getDay()] + ' ' + P.hhmm(x.date) : F.centreText(x);
-        return '<div class="t-row' + (x.id === m.id ? ' here' : '') + '">' + P.UI.crest(x.home, 'xs') + '<span class="nm">' + P.esc(x.home.short) + '</span>' +
-          '<b class="rd">' + P.esc(when) + '</b><span class="nm r">' + P.esc(x.away.short) + '</span>' + P.UI.crest(x.away, 'xs') + '</div>';
+        return '<div class="t-row' + (x.id === m.id ? ' here' : '') + '">' + P.UI.crest(x.home, 'xs') + '<span class="nm">' + P.esc(P.team(x.home, true)) + '</span>' +
+          '<b class="rd">' + P.esc(when) + '</b><span class="nm r">' + P.esc(P.team(x.away, true)) + '</span>' + P.UI.crest(x.away, 'xs') + '</div>';
       }).join('') + '</div>';
   }
   /* beside the list: the focused match's league table, its group, or its cup round */
@@ -100,48 +100,48 @@
       if (side && side.kind === 'table') return tableRows(m.compName, side.groups[0].rows, m);
       if (side && side.kind === 'groups') {
         var g = side.groups.filter(function (x) { return x.rows.some(function (r) { return r.id === m.home.id || r.id === m.away.id; }); })[0] || side.groups[0];
-        return tableRows(m.compName + (g.name ? ' · ' + g.name : ''), g.rows, m);
+        return tableRows(m.compName + (g.name ? ' · ' + P.t(g.name) : ''), g.rows, m);
       }
       if (side && side.kind === 'round') return roundRows(m, side);
     }
-    if (F.table.length) { C.sideComp = 'spl'; return tableRows('Saudi Pro League', F.table, null); }
+    if (F.table.length) { C.sideComp = 'spl'; return tableRows(P.t('Saudi Pro League'), F.table, null); }
     return '';
   }
 
   /* ---------- the whole table and the coming matches of one competition (OK on the table) ---------- */
   function whenText(d) {
     var t = P.dayStart(new Date()), k = Math.round((P.dayStart(d) - t) / 86400000);
-    return k === 0 ? 'Today' : k === 1 ? 'Tomorrow' : k === -1 ? 'Yesterday' : P.dateText(d);
+    return k === 0 ? P.t('Today') : k === 1 ? P.t('Tomorrow') : k === -1 ? P.t('Yesterday') : P.dateText(d);
   }
   function fullTable(comp, m) {
     var F = P.Football, side = F.side(comp), ids = m ? [m.home.id, m.away.id] : [];
     if (!side && comp === 'spl' && F.table.length) side = { kind: 'table', groups: [{ name: '', rows: F.table }] };
-    if (!side) return '<div class="f-empty">Loading the table…</div>';
+    if (!side) return '<div class="f-empty">' + P.t('Loading the table…') + '</div>';
     if (side.kind === 'round') {
-      return '<div class="f-h">' + P.esc(side.stage) + '</div>' + side.matches.map(function (x) { return fixLine(x, ids); }).join('');
+      return '<div class="f-h">' + P.esc(P.t(side.stage)) + '</div>' + side.matches.map(function (x) { return fixLine(x, ids); }).join('');
     }
     return side.groups.map(function (g) {
-      return (side.groups.length > 1 || g.name ? '<div class="f-h">' + P.esc(g.name || '') + '</div>' : '') +
-        '<div class="t-head"><span></span><span class="cols"><i>P</i><i>GD</i><i>Pts</i></span></div>' +
+      return (side.groups.length > 1 || g.name ? '<div class="f-h">' + P.esc(P.t(g.name || '')) + '</div>' : '') +
+        '<div class="t-head"><span></span><span class="cols"><i>' + P.t('P') + '</i><i>' + P.t('GD') + '</i><i>' + P.t('Pts') + '</i></span></div>' +
         g.rows.map(function (r) {
           var cls = (F.isFavName(r.name) ? ' fav' : '') + (ids.indexOf(r.id) >= 0 ? ' here' : '');
           return '<div class="t-row' + cls + '"><span class="rk">' + r.rank + '</span>' +
-            P.UI.crest({ logo: r.logo, abbr: r.abbr, color: '#7a7f87' }, 'xs') + '<span class="nm">' + P.esc(r.name) + '</span>' +
-            '<span class="cols"><i>' + r.played + '</i><i>' + (r.gd > 0 ? '+' : '') + r.gd + '</i><b>' + r.points + '</b></span></div>';
+            P.UI.crest({ logo: r.logo, abbr: r.abbr, color: '#7a7f87' }, 'xs') + '<span class="nm">' + P.esc(P.team(r)) + '</span>' +
+            '<span class="cols"><i>' + r.played + '</i><i>' + P.ltr((r.gd > 0 ? '+' : '') + r.gd) + '</i><b>' + r.points + '</b></span></div>';
         }).join('');
     }).join('');
   }
   function fixLine(x, ids) {
     var F = P.Football, mid = x.state === 'pre' ? P.hhmm(x.date) : F.centreText(x);
     var cls = (x.fav ? ' fav' : '') + (ids && (ids.indexOf(x.home.id) >= 0 && ids.indexOf(x.away.id) >= 0) ? ' here' : '');
-    return '<div class="t-row' + cls + '">' + (x.state === 'in' ? '<i class="dot"></i>' : '') + P.UI.crest(x.home, 'xs') + '<span class="nm">' + P.esc(x.home.short) + '</span>' +
-      '<b class="rd">' + P.esc(mid) + '</b><span class="nm r">' + P.esc(x.away.short) + '</span>' + P.UI.crest(x.away, 'xs') + '</div>';
+    return '<div class="t-row' + cls + '">' + (x.state === 'in' ? '<i class="dot"></i>' : '') + P.UI.crest(x.home, 'xs') + '<span class="nm">' + P.esc(P.team(x.home, true)) + '</span>' +
+      '<b class="rd">' + P.esc(mid) + '</b><span class="nm r">' + P.esc(P.team(x.away, true)) + '</span>' + P.UI.crest(x.away, 'xs') + '</div>';
   }
   /* results and coming matches in one list, two weeks each way; it opens at today */
   function fixtures(comp, m) {
     var list = P.Football.fixtures(comp), ids = m ? [m.home.id, m.away.id] : [];
-    if (!list) return '<div class="f-empty">Loading matches…</div>';
-    if (!list.length) return '<div class="f-empty">No matches two weeks either side of today.</div>';
+    if (!list) return '<div class="f-empty">' + P.t('Loading matches…') + '</div>';
+    if (!list.length) return '<div class="f-empty">' + P.t('No matches two weeks either side of today.') + '</div>';
     var out = '', last = '', marked = false, today = +P.dayStart(new Date());
     list.forEach(function (x) {
       var d = whenText(x.date);
@@ -158,22 +158,22 @@
   var STATS = [['possessionPct', 'Possession', '%'], ['totalShots', 'Shots'], ['shotsOnTarget', 'On target'], ['wonCorners', 'Corners'],
     ['foulsCommitted', 'Fouls'], ['offsides', 'Offsides'], ['yellowCards', 'Yellow cards'], ['redCards', 'Red cards'], ['saves', 'Saves']];
   function detailsLeft(m, d) {
-    if (!d) return '<div class="f-empty">Loading the match…</div>';
+    if (!d) return '<div class="f-empty">' + P.t('Loading the match…') + '</div>';
     if (d.error) return '<div class="f-empty">' + P.esc(d.error) + '</div>';
     if (m.state === 'pre' && !d.events.length && !Object.keys(d.stats).length)
-      return '<div class="f-h">Kick-off</div><div class="pre-ko">' + P.esc(P.dateText(m.date) + ' · ' + P.hhmm(m.date)) + '<small>' + (m.date > Date.now() ? 'in ' + P.esc(P.until(m.date - Date.now())) : '') + '</small></div>' +
-        (m.venue ? '<div class="pre-v">' + P.icon('pin') + P.esc(m.venue) + '</div>' : '') + '<div class="f-empty">Stats and the minute-by-minute appear once the match starts.</div>';
+      return '<div class="f-h">' + P.t('Kick-off') + '</div><div class="pre-ko">' + P.esc(P.dateText(m.date) + ' · ' + P.hhmm(m.date)) + '<small>' + (m.date > Date.now() ? P.esc(P.t('in {t}', { t: P.until(m.date - Date.now()) })) : '') + '</small></div>' +
+        (m.venue ? '<div class="pre-v">' + P.icon('pin') + P.esc(m.venue) + '</div>' : '') + '<div class="f-empty">' + P.t('Stats and the minute-by-minute appear once the match starts.') + '</div>';
     var rows = STATS.filter(function (s) { return d.stats[s[0]]; }).map(function (s) {
       var x = d.stats[s[0]], h = parseFloat(x.home) || 0, a = parseFloat(x.away) || 0, tot = h + a || 1;
-      return '<div class="ds-r"><b>' + P.esc(x.home || '0') + (s[2] || '') + '</b><span class="ds-l">' + s[1] + '</span><b class="r">' + P.esc(x.away || '0') + (s[2] || '') + '</b>' +
+      return '<div class="ds-r"><b>' + P.esc(x.home || '0') + (s[2] || '') + '</b><span class="ds-l">' + P.t(s[1]) + '</span><b class="r">' + P.esc(x.away || '0') + (s[2] || '') + '</b>' +
         '<div class="ds-bar"><i style="width:' + Math.round(h / tot * 100) + '%"></i><i class="a" style="width:' + Math.round(a / tot * 100) + '%"></i></div></div>';
     }).join('');
     var ICON = { goal: '⚽', yellow: '<i class="card y"></i>', red: '<i class="card r"></i>', sub: '⇄' };
     var tl = d.events.map(function (e) {
-      var who = e.kind === 'sub' ? (e.who[0] || '') + (e.who[1] ? ' ↔ ' + e.who[1] : '') : (e.who[0] || '') + (e.pen ? ' (pen)' : '') + (e.own ? ' (og)' : '');
-      return '<div class="tl-r ' + e.side + (e.kind === 'goal' ? ' goal' : '') + '"><span class="tl-m">' + P.esc(e.min) + '</span><span class="tl-i">' + ICON[e.kind] + '</span><span class="tl-w">' + P.esc(who) + '</span></div>';
+      var who = e.kind === 'sub' ? (e.who[0] || '') + (e.who[1] ? ' ↔ ' + e.who[1] : '') : (e.who[0] || '') + (e.pen ? P.t(' (pen)') : '') + (e.own ? P.t(' (og)') : '');
+      return '<div class="tl-r ' + e.side + (e.kind === 'goal' ? ' goal' : '') + '"><span class="tl-m">' + P.esc(P.ltr(e.min)) + '</span><span class="tl-i">' + ICON[e.kind] + '</span><span class="tl-w">' + P.esc(who) + '</span></div>';
     }).join('');
-    return (rows ? '<div class="f-h">Stats</div>' + rows : '') + (tl ? '<div class="f-h">Match</div>' + tl : '') || '<div class="f-empty">No details for this match.</div>';
+    return (rows ? '<div class="f-h">' + P.t('Stats') + '</div>' + rows : '') + (tl ? '<div class="f-h">' + P.t('Match') + '</div>' + tl : '') || '<div class="f-empty">' + P.t('No details for this match.') + '</div>';
   }
   /* ---------- line-ups on a pitch: each team's formation from its keeper outwards; home on the left ---------- */
   function lineOf(p) {
@@ -212,11 +212,12 @@
         line.forEach(function (p, pi) {
           var y = (pi + 1) / (line.length + 1) * 100;            // a team's left side is at the top for the team attacking right
           if (t[1] === 'away') { x = 100 - (5 + li * (36 / Math.max(1, n - 1))); y = 100 - y; }
-          dots += '<div class="pd ' + t[1] + '" style="left:' + x.toFixed(1) + '%;top:' + y.toFixed(1) + '%"><b>' + P.esc(p.num) + '</b><span>' + P.esc(p.last || p.name) + (p.off ? ' ↓' : '') + '</span></div>';
+          var px = P.rtl ? 100 - x : x, py = P.rtl ? 100 - y : y;   // mirrored in Arabic: home on the right, attacking left
+          dots += '<div class="pd ' + t[1] + '" style="left:' + px.toFixed(1) + '%;top:' + py.toFixed(1) + '%"><b>' + P.esc(p.num) + '</b><span>' + P.esc(p.last || p.name) + (p.off ? ' ↓' : '') + '</span></div>';
         });
       });
     });
-    return '<div class="pitch-h"><span>' + P.esc(m.home.short) + (d.formation.home ? ' · ' + P.esc(d.formation.home) : '') + '</span><span>' + (d.formation.away ? P.esc(d.formation.away) + ' · ' : '') + P.esc(m.away.short) + '</span></div>' +
+    return '<div class="pitch-h"><span>' + P.esc(P.team(m.home, true)) + (d.formation.home ? ' · ' + P.esc(P.ltr(d.formation.home)) : '') + '</span><span>' + (d.formation.away ? P.esc(P.ltr(d.formation.away)) + ' · ' : '') + P.esc(P.team(m.away, true)) + '</span></div>' +
       '<div class="pitch"><i class="pl-half"></i><i class="pl-circle"></i><i class="pl-box l"></i><i class="pl-box r"></i>' + dots + '</div>';
   }
   function detailsRight(m, d) {
@@ -224,15 +225,15 @@
     var pt = pitch(m, d);
     if (pt) {
       var bench = function (list) { return list.filter(function (p) { return !p.starter; }).map(function (p) { return '<div class="lu-r"><span class="lu-n">' + P.esc(p.num) + '</span><span class="lu-p">' + P.esc(p.name) + (p.on ? ' <i class="on">↑</i>' : '') + '</span><span class="lu-pos">' + P.esc(p.pos) + '</span></div>'; }).join(''); };
-      return pt + '<div class="lu"><div><div class="lu-h">Substitutes · ' + P.esc(m.home.short) + '</div>' + bench(d.lineups.home) + '</div><div><div class="lu-h">Substitutes · ' + P.esc(m.away.short) + '</div>' + bench(d.lineups.away) + '</div></div>';
+      return pt + '<div class="lu"><div><div class="lu-h">' + P.t('Substitutes') + ' · ' + P.esc(P.team(m.home, true)) + '</div>' + bench(d.lineups.home) + '</div><div><div class="lu-h">' + P.t('Substitutes') + ' · ' + P.esc(P.team(m.away, true)) + '</div>' + bench(d.lineups.away) + '</div></div>';
     }
     var col = function (list) {
       var st = list.filter(function (p) { return p.starter; }), bench = list.filter(function (p) { return !p.starter; });
       var line = function (p) { return '<div class="lu-r"><span class="lu-n">' + P.esc(p.num) + '</span><span class="lu-p">' + P.esc(p.name) + (p.off ? ' <i>↓</i>' : '') + (p.on ? ' <i class="on">↑</i>' : '') + '</span><span class="lu-pos">' + P.esc(p.pos) + '</span></div>'; };
-      return st.map(line).join('') + (bench.length ? '<div class="lu-h">Substitutes</div>' + bench.map(line).join('') : '');
+      return st.map(line).join('') + (bench.length ? '<div class="lu-h">' + P.t('Substitutes') + '</div>' + bench.map(line).join('') : '');
     };
-    if (!d.lineups.home.length && !d.lineups.away.length) return '<div class="f-empty">' + (m.state === 'pre' ? 'Line-ups appear about an hour before kick-off.' : 'No line-ups for this match.') + '</div>';
-    return '<div class="lu"><div><div class="f-h">' + P.esc(m.home.short) + '</div>' + col(d.lineups.home) + '</div><div><div class="f-h">' + P.esc(m.away.short) + '</div>' + col(d.lineups.away) + '</div></div>';
+    if (!d.lineups.home.length && !d.lineups.away.length) return '<div class="f-empty">' + P.t(m.state === 'pre' ? 'Line-ups appear about an hour before kick-off.' : 'No line-ups for this match.') + '</div>';
+    return '<div class="lu"><div><div class="f-h">' + P.esc(P.team(m.home, true)) + '</div>' + col(d.lineups.home) + '</div><div><div class="f-h">' + P.esc(P.team(m.away, true)) + '</div>' + col(d.lineups.away) + '</div></div>';
   }
   C.openDetails = function (m) {
     C.full = { kind: 'details', m: m, comp: m.comp, col: 0, data: null };
@@ -241,7 +242,7 @@
     var f = C.full;
     var load = function (fresh) {
       P.Football.summary(m, fresh).then(function (d) { if (C.full === f) { f.data = d; renderFull(); } },
-        function () { if (C.full === f && !f.data) { f.data = { error: "Couldn't load this match's details" }; renderFull(); } });
+        function () { if (C.full === f && !f.data) { f.data = { error: P.t("Couldn't load this match's details") }; renderFull(); } });
     };
     load(false);
     // during the match, and in the last hours before it (line-ups), the page keeps itself up to date
@@ -252,10 +253,10 @@
     }, 30000);
   };
   function okAction(m) {
-    if (m.state === 'post') return ['Highlights', function () { P.Highlights.open(m, null); }];
-    if (m.state === 'in') return ['Watch on beIN', function () { P.Apps.switchTo('hdmi:bein'); }];
+    if (m.state === 'post') return [P.t('Highlights'), function () { P.Highlights.open(m, null); }];
+    if (m.state === 'in') return [P.t('Watch on beIN'), function () { P.Apps.switchTo('hdmi:bein'); }];
     if (/postpon|cancel/i.test(m.statusName)) return null;
-    return [P.Football.hasReminder(m) ? 'Remove reminder' : 'Remind me', function () { remind(m); renderFull(); }];
+    return [P.Football.hasReminder(m) ? P.t('Remove reminder') : P.t('Remind me'), function () { remind(m); renderFull(); }];
   }
 
   function renderFull() {
@@ -263,18 +264,18 @@
     if (f.kind === 'details') {
       if (!box) { box = P.el('div', 'c-full'); box.id = 'cFull'; root().appendChild(box); }
       var m = f.m;
-      var dhtml = '<div class="f-top"><h2 class="d-h">' + P.UI.crest(m.home, 'sm') + P.esc(m.home.short) + ' <b>' + F.centreText(m) + '</b> ' + P.esc(m.away.short) + P.UI.crest(m.away, 'sm') +
+      var dhtml = '<div class="f-top"><h2 class="d-h">' + P.UI.crest(m.home, 'sm') + P.esc(P.team(m.home, true)) + ' <b>' + F.centreText(m) + '</b> ' + P.esc(P.team(m.away, true)) + P.UI.crest(m.away, 'sm') +
         '<small>' + P.esc(m.compName + ' · ' + F.statusText(m) + (m.venue ? ' · ' + m.venue : '')) + '</small></h2>' +
         (okAction(m) ? '<span class="f-keys"><span class="key">OK</span>' + okAction(m)[0] + '</span>' : '') + '</div>' +
         '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-track" id="ft0">' + detailsLeft(m, f.data) + '</div></section>' +
-        '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-track" id="ft1"><div class="f-title">Line-ups</div>' + detailsRight(m, f.data) + '</div></section></div>';
+        '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-track" id="ft1"><div class="f-title">' + P.t('Line-ups') + '</div>' + detailsRight(m, f.data) + '</div></section></div>';
       if (box._html !== dhtml) { box._html = dhtml; box.innerHTML = dhtml; placeFull(true); }   // a live update keeps where you are
       return;
     }
     if (!box) { box = P.el('div', 'c-full'); box.id = 'cFull'; root().appendChild(box); }
-    var html = '<div class="f-top"><h2>' + P.esc(c.name || '') + '</h2><span class="f-keys"><span class="key">◀ ▶</span>Switch · <span class="key">▲ ▼</span>Scroll · <span class="key">Back</span>Close</span></div>' +
-      '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-track" id="ft0"><div class="f-title">Table</div>' + fullTable(f.comp, f.m) + '</div></section>' +
-      '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-track" id="ft1"><div class="f-title">Matches</div>' + fixtures(f.comp, f.m) + '</div></section></div>';
+    var html = '<div class="f-top"><h2>' + P.esc(c.name || '') + '</h2><span class="f-keys"><span class="key">◀ ▶</span>' + P.t('Switch') + ' · <span class="key">▲ ▼</span>' + P.t('Scroll') + ' · <span class="key">' + P.t('Back') + '</span>' + P.t('Close') + '</span></div>' +
+      '<div class="f-cols"><section class="f-col' + (f.col === 0 ? ' focus' : '') + '" id="fc0"><div class="f-track" id="ft0"><div class="f-title">' + P.t('Table') + '</div>' + fullTable(f.comp, f.m) + '</div></section>' +
+      '<section class="f-col' + (f.col === 1 ? ' focus' : '') + '" id="fc1"><div class="f-track" id="ft1"><div class="f-title">' + P.t('Matches') + '</div>' + fixtures(f.comp, f.m) + '</div></section></div>';
     if (box._html !== html) { box._html = html; box.innerHTML = html; placeFull(true); }
     else placeFull(false);
   }
@@ -332,11 +333,11 @@
     var focusM = ms[C.at];
     var pills = '';
     for (var o = -RANGE; o <= RANGE; o++) pills += '<button class="day' + (C.day === o ? ' on' : '') + '" data-b="' + (o + RANGE + 1) + '">' + dayLabel(o) + '</button>';
-    var bar = '<div class="c-head"><button class="cbtn" data-b="0">' + P.icon('back') + 'Back</button><h1>Matches</h1>' +
+    var bar = '<div class="c-head"><button class="cbtn" data-b="0">' + P.icon('back') + P.t('Back') + '</button><h1>' + P.t('Matches') + '</h1>' +
       '<div class="c-days" id="cDays"><div class="c-dtrack" id="cDtrack">' + pills + '</div></div></div>';
     var body, ds = F.dayState[C.day];
-    if (!F.ready || (ds && ds.loading && !ms.length)) body = '<div class="c-empty">Loading matches…</div>';
-    else if (!ms.length) body = '<div class="c-empty">' + (F.error && C.day >= -1 && C.day <= 1 ? P.esc(F.error) + '. Check the internet connection.' : 'No matches ' + (C.day === 0 ? 'today' : C.day === -1 ? 'yesterday' : C.day === 1 ? 'tomorrow' : 'on ' + dayLabel(C.day)) + ' in your competitions.') + '</div>';
+    if (!F.ready || (ds && ds.loading && !ms.length)) body = '<div class="c-empty">' + P.t('Loading matches…') + '</div>';
+    else if (!ms.length) body = '<div class="c-empty">' + (F.error && C.day >= -1 && C.day <= 1 ? P.esc(P.t(F.error)) + P.t('. Check the internet connection.') : P.t('No matches {when} in your competitions.', { when: C.day === 0 ? P.t('today') : C.day === -1 ? P.t('yesterday') : C.day === 1 ? P.t('tomorrow') : P.t('on {day}', { day: dayLabel(C.day) }) })) + '</div>';
     else {
       var idx = 0;
       body = F.byComp(ms).map(function (g) {
@@ -344,12 +345,12 @@
           var i = ms.indexOf(m); idx++;
           var bell = F.isFollowed(m) || F.hasReminder(m) ? P.icon('bell') : '';
           var st = m.state === 'in' ? '<span class="live">' + (bell || '<i class="dot"></i>') + P.esc(F.statusText(m)) + '</span>'
-            : m.state === 'post' ? '<span>' + (F.statusText(m) === 'Full time' ? 'FT' : P.esc(F.statusText(m))) + '</span>'
+            : m.state === 'post' ? '<span>' + (F.statusText(m) === P.t('Full time') ? P.t('FT') : P.esc(F.statusText(m))) + '</span>'
             : '<span>' + (bell || (m.big ? P.icon('star') : '')) + P.hhmm(m.date) + '</span>';
           return '<div class="mline' + (m.fav ? ' fav' : '') + '" data-m="' + i + '"><span class="st">' + st + '</span>' +
-            P.UI.crest(m.home, 'sm') + '<span class="tn' + (P.Football.isFavName(m.home.name) ? ' me' : '') + '">' + P.esc(m.home.name) + '</span>' +
+            P.UI.crest(m.home, 'sm') + '<span class="tn' + (P.Football.isFavName(m.home.name) ? ' me' : '') + '">' + P.esc(P.team(m.home)) + '</span>' +
             '<b class="sc">' + (m.state === 'pre' ? '–' : F.centreText(m)) + '</b>' +
-            '<span class="tn r' + (P.Football.isFavName(m.away.name) ? ' me' : '') + '">' + P.esc(m.away.name) + '</span>' + P.UI.crest(m.away, 'sm') + '</div>';
+            '<span class="tn r' + (P.Football.isFavName(m.away.name) ? ' me' : '') + '">' + P.esc(P.team(m.away)) + '</span>' + P.UI.crest(m.away, 'sm') + '</div>';
         }).join('') + '</div>';
       }).join('');
     }
@@ -390,11 +391,12 @@
     if (dt && dbox) {
       var pill = P.$('[data-b="' + (C.zone === 'bar' && C.bar > 0 ? C.bar : C.day + RANGE + 1) + '"]', dt);
       if (pill) {
-        var x = dt._x == null ? pill.offsetLeft - dbox.clientWidth / 2 + pill.offsetWidth / 2 : dt._x, w = dbox.clientWidth;
-        if (pill.offsetLeft - x < 20) x = pill.offsetLeft - 20;
-        if (pill.offsetLeft + pill.offsetWidth - x > w - 20) x = pill.offsetLeft + pill.offsetWidth - w + 20;
-        x = Math.max(0, Math.min(x, dt.scrollWidth - w));
-        if (x !== dt._x) { dt._x = x; dt.style.transform = 'translate3d(' + (-x) + 'px,0,0)'; }
+        var pl = P.lead(pill, dt);              // from the strip's start: the left, or the right in Arabic
+        var x = dt._x == null ? pl - dbox.clientWidth / 2 + pill.offsetWidth / 2 : dt._x, w = dbox.clientWidth;
+        if (pl - x < 20) x = pl - 20;
+        if (pl + pill.offsetWidth - x > w - 20) x = pl + pill.offsetWidth - w + 20;
+        x = Math.max(0, Math.min(x, dt.offsetWidth - w));
+        if (x !== dt._x) { dt._x = x; P.slideX(dt, x); }
       }
     }
   }

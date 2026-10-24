@@ -240,10 +240,17 @@ async def main():
         ctx = await b.new_context(viewport={'width': 1920, 'height': 1080}, timezone_id='Asia/Riyadh', locale='en-GB')
         await install_routes(ctx, state)
         await ctx.add_init_script(MOCK_TV)
+        if os.environ.get('PLUME_LANG') == 'ar':   # Arabic run: the same steps, for the screenshots (English checks will differ)
+            await ctx.add_init_script("try{localStorage.setItem('plume.lang','\"ar\"')}catch(e){}")
         pg = await ctx.new_page()
         pg.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
         pg.on('console', lambda m: errors.append('console: ' + m.text) if m.type == 'error' else None)
-        key = lambda k: pg.keyboard.press(k)
+        AR = os.environ.get('PLUME_LANG') == 'ar'
+        async def key(k):
+            # in Arabic the screen is mirrored: the same step is the other arrow (not in the players)
+            if AR and k in ('ArrowLeft', 'ArrowRight') and await pg.evaluate("['player','youtube','input'].indexOf((P.UI.top()||{}).name) < 0"):
+                k = 'ArrowRight' if k == 'ArrowLeft' else 'ArrowLeft'
+            await pg.keyboard.press(k)
         async def shot(name):
             await pg.wait_for_timeout(450)
             await pg.screenshot(path=os.path.join(OUT, name + '.jpg'), type='jpeg', quality=86)
@@ -500,9 +507,9 @@ async def main():
         await shot('09e-alert-over-film')
         # while a film plays, live scores still refresh for alerting matches (only with alerts over films on)
         calls = await ev_("""(function(){var F=P.Football,n=0,orig=F.refresh;F.refresh=function(){n++;return Promise.resolve();};
-            P.Football.toggleFollow(_om); P.footballLoop.reset(); P.footballLoop(); var a=n; P.footballLoop.reset();
+            if(!F.isFollowed(_om)) F.toggleFollow(_om); P.footballLoop.reset(); P.footballLoop(); var a=n; P.footballLoop.reset();
             P.S.set('alertOverFilms', false); P.footballLoop(); P.S.set('alertOverFilms', true); var b=n;
-            F.refresh=orig; P.Football.toggleFollow(_om); return [a,b];})()""")
+            F.refresh=orig; return [a,b];})()""")
         check('during a film: live scores keep refreshing (only with over-films on)', calls == [1, 1], calls)
         check('corner alert sits above the Plex player', await ev_("+getComputedStyle(document.getElementById('alert')).zIndex > 30"))
         await ev_("document.body.classList.remove('playing'); P.Alerts.queue=[]; P.Alerts.showing=false; document.getElementById('alert').classList.remove('on')")
@@ -513,7 +520,7 @@ async def main():
         await key('Escape'); await pg.wait_for_timeout(300); await key('Escape'); await pg.wait_for_timeout(300)
         await ev_("P.UI.top().name=='settings' && P.Settings.close()"); await pg.wait_for_timeout(300)
         await ev_("P.Home.focus('apps','app:plex')"); await key('ArrowDown'); await pg.wait_for_timeout(200)
-        await ev_("document.body.classList.remove('playing'); P.S.reset('alertOverFilms'); P.S.reset('alertWhat'); P.Football.toggleFollow(_om); P.Alerts.queue=[]; P.Alerts.showing=false; document.getElementById('alert').classList.remove('on')")
+        await ev_("document.body.classList.remove('playing'); P.S.reset('alertOverFilms'); P.S.reset('alertWhat'); if(P.Football.isFollowed(_om)) P.Football.toggleFollow(_om); P.Alerts.queue=[]; P.Alerts.showing=false; document.getElementById('alert').classList.remove('on')")
         check('down from apps reaches the matches title', (await ev_("P.Home.row")) == 'matchesH')
         await key('ArrowDown'); await pg.wait_for_timeout(200)
         check('...then the matches row', (await ev_("P.Home.row")) == 'matches')
@@ -570,6 +577,18 @@ async def main():
         await ev_("P.Plex.unhide(P.Plex.hiddenList()[0])"); await pg.wait_for_timeout(1200)
         check('OK in Hidden brings it back', await ev_("P.Plex.items.some(c=>c.title=='Northbound')"))
         check('no Plex/football errors', not await ev_("P.Football.error"))
+        # the two removed rows stay gone; Language switches Plume to Arabic (right to left) and back
+        if not AR:
+            await ev_("P.Settings.open()"); await pg.wait_for_timeout(400)
+            labs = await ev_("[...document.querySelectorAll('#settings .s-row .lab')].map(e=>e.childNodes[0].textContent)")
+            check('settings: no Rearrange row, no YouTube key row', 'Rearrange the row' not in labs and 'YouTube key for highlights' not in labs and 'Language' in labs, labs[:4])
+            await key('ArrowDown') if labs[0] != 'Language' else None
+            await key('Enter'); await pg.wait_for_timeout(2500)
+            got = await ev_("[document.documentElement.dir, P.t('Settings'), P.Football.COMPS[0].name]")
+            check('Language → Arabic: right to left, in Arabic', got == ['rtl', 'الإعدادات', 'دوري روشن السعودي'], got)
+            await shot('16-arabic-home')
+            await ev_("P.S.set('lang','en'); location.reload()"); await pg.wait_for_timeout(2500)
+            check('...and back to English', await ev_("document.documentElement.dir") == 'ltr')
 
         await b.close()
 

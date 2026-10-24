@@ -72,7 +72,7 @@
     var i = 0;
     return new Promise(function (resolve, reject) {
       (function next() {
-        if (i >= conns.length) { reject(new Error("Found " + server.name + " but couldn't connect to it.")); return; }
+        if (i >= conns.length) { reject(new Error(P.t("Found {name} but couldn't connect to it.", { name: server.name }))); return; }
         var c = conns[i++];
         P.json(c.uri + '/identity', { headers: hdrs(token) }, 4000).then(function () {
           resolve({ name: server.name, id: server.clientIdentifier, uri: c.uri, token: token });
@@ -109,7 +109,7 @@
     return {
       key: String(m.ratingKey),
       title: isEp ? (m.grandparentTitle || m.title) : m.title,
-      sub: (isEp ? 'S' + (m.parentIndex || 0) + ' E' + (m.index || 0) + ' · ' : '') + (left ? P.minutesLeft(left) : (isEp ? m.title : '')),
+      sub: (isEp ? P.t('S{s} E{e}', { s: m.parentIndex || 0, e: m.index || 0 }) + ' · ' : '') + (left ? P.minutesLeft(left) : (isEp ? m.title : '')),
       progress: m.duration ? Math.min(1, (m.viewOffset || 0) / m.duration) : 0,
       image: img ? srv.uri + '/photo/:/transcode?width=440&height=248&minSize=1&upscale=1&url=' + encodeURIComponent(img) + '&X-Plex-Token=' + encodeURIComponent(srv.token) : '',
       plexKey: m.key, guid: m.guid || ((m.grandparentTitle || '') + '|' + m.title + '|' + (m.year || '')),
@@ -214,7 +214,7 @@
         var a = auds.filter(function (x) { return x.selected; })[0] || auds[0] || {};
         var code = a.languageCode || '';
         return { key: c.key, res: String(media.videoResolution || c.res || '').toLowerCase(), viewed: Math.max(m.lastViewedAt || 0, c.viewed || 0),
-          offset: m.viewOffset != null ? m.viewOffset : c.offset || 0, lang: code, langName: LANGS[code] || a.language || '', lib: m.librarySectionTitle || c.lib || '' };
+          offset: m.viewOffset != null ? m.viewOffset : c.offset || 0, lang: code, langName: LANGS[code] ? P.t(LANGS[code]) : a.language || '', lib: m.librarySectionTitle || c.lib || '' };
       }).catch(function () { return { key: c.key, res: c.res || '', viewed: c.viewed || 0, offset: c.offset || 0, lang: '', langName: '', lib: c.lib || '' }; });
     })).then(function (vs) {
       var langs = {}, ress = {};
@@ -224,7 +224,7 @@
         var bits = [];
         if (manyLang || !manyRes) bits.push(v.langName || v.lib);
         if (manyRes || !manyLang) bits.push(resName(v.res));
-        v.label = bits.filter(Boolean).join(' · ') || v.lib || 'Version';
+        v.label = bits.filter(Boolean).join(' · ') || v.lib || P.t('Version');
       });
       // two versions that still read the same: tell them apart by their library
       vs.forEach(function (v) { if (vs.filter(function (w) { return w.label === v.label; }).length > 1 && v.lib) v.label += ' · ' + v.lib; });
@@ -314,7 +314,7 @@
           }).catch(function (e) { note('plex.tv not reachable (' + e.message + ')'); setTimeout(look, 2500); });
         })();
       });
-    }, function () { P.UI.toast("Couldn't open Plex"); });
+    }, function () { P.UI.toast(P.t("Couldn't open Plex")); });
   };
 
   /* Hide from Continue Watching: in Plume only (Plex keeps it). The title comes back by itself when you watch it
@@ -342,7 +342,7 @@
     h.push(e); P.S.set('plexHidden', h.slice(-300));
     X.items = X.items.filter(function (c) { return !isHidden(c, [e]); });
     P.bus.emit('plex');
-    P.UI.toast(P.esc(e.title) + ' is hidden · Settings → Plex → Hidden brings it back');
+    P.UI.toast(P.t('{title} is hidden · Settings → Plex → Hidden brings it back', { title: P.esc(e.title) }));
   };
   X.hiddenList = function () { return P.S.get('plexHidden').filter(function (h) { return h && (h.kind === 'show' || h.kind === 'movie'); }); };
   X.unhide = function (entry) {

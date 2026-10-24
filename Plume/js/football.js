@@ -19,6 +19,7 @@
     { k: 'epl',      slug: 'eng.1',            name: 'Premier League',             short: 'Premier League', mode: 'eu' },
     { k: 'liga',     slug: 'esp.1',            name: 'La Liga',                    short: 'La Liga',    mode: 'eu' }
   ];
+  COMPS.forEach(function (c) { c.nameEn = c.name; c.name = P.t(c.name); c.short = P.t(c.short); });   // shown in your language
   var ORDER = COMPS.map(function (c) { return c.k; });
 
   function norm(s) {
@@ -121,10 +122,10 @@
   };
   /* short status: LIVE 63' / HT / FT / 21:00 */
   F.statusText = function (m) {
-    if (/postpon/i.test(m.statusName)) return 'Postponed';
-    if (/cancel/i.test(m.statusName)) return 'Cancelled';
-    if (m.state === 'in') return /half_?time/i.test(m.statusName) ? 'Half time' : (m.clock || 'Live');
-    if (m.state === 'post') return /pen/i.test(m.detail) ? 'Penalties' : /aet|extra/i.test(m.detail) ? 'After extra time' : 'Full time';
+    if (/postpon/i.test(m.statusName)) return P.t('Postponed');
+    if (/cancel/i.test(m.statusName)) return P.t('Cancelled');
+    if (m.state === 'in') return /half_?time/i.test(m.statusName) ? P.t('Half time') : (P.ltr(m.clock) || P.t('Live'));
+    if (m.state === 'post') return P.t(/pen/i.test(m.detail) ? 'Penalties' : /aet|extra/i.test(m.detail) ? 'After extra time' : 'Full time');
     return P.hhmm(m.date);
   };
 
