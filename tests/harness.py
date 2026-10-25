@@ -567,6 +567,12 @@ async def main():
         await ev_("P.S.set('theme','light'); P.Sleep.show()"); await pg.wait_for_timeout(3500)
         check('sleep screen shows matches', await ev_("document.querySelectorAll('.z-m').length") >= 2)
         await shot('14-sleep')
+        # an alert while the sleep screen is on shows on top of it
+        await ev_("(function(){var A=P.Alerts,m=P.Football.day(0).filter(x=>x.state=='in')[0];A.queue=[];A.showing=false;A.queue.push({at:Date.now(),kind:'Goal',m:m,team:m.home,who:'Test 80'});A.next();})()"); await pg.wait_for_timeout(700)
+        top = await ev_("(function(){var e=document.getElementById('alert'),z=document.getElementById('sleep');return e.classList.contains('on') && +getComputedStyle(e).zIndex > +getComputedStyle(z).zIndex && getComputedStyle(e).visibility=='visible';})()")
+        check('alert shows on top of the sleep screen', top and await ev_("P.Sleep.active"))
+        await shot('14b-alert-over-sleep')
+        await ev_("P.Alerts.queue=[];P.Alerts.showing=false;document.getElementById('alert').classList.remove('on')")
         await key('ArrowDown'); await pg.wait_for_timeout(800)
         check('any key closes the sleep screen', not await ev_("P.Sleep.active"))
         # hide a whole show from Plume; Settings → Plex → Hidden brings it back

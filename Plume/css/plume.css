@@ -449,7 +449,7 @@ body.playing #wall, body.playing #home, body.playing .overlay, body.playing .pan
 .f-col .t-row .dot { margin-right: 4px; }
 
 /* ---------- match alerts: over anything Plume shows, the PS5 and beIN included; always dark so they read over a picture ---------- */
-.alert { position: fixed; top: 44px; right: var(--side); z-index: 12; min-width: 560px; padding: 22px 30px 20px; border-radius: 26px;
+.alert { position: fixed; top: 44px; right: var(--side); z-index: 25; min-width: 560px; padding: 22px 30px 20px; border-radius: 26px;
   background: rgba(14, 15, 17, .92); color: #F5F5F5; box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 20px 60px rgba(0, 0, 0, .6);
   opacity: 0; transform: translateY(-24px); transition: opacity .35s, transform .35s; pointer-events: none; }
 .alert.on { opacity: 1; transform: none; }
