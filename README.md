@@ -4,12 +4,14 @@ A calm, ad-free home screen for Samsung TVs (Tizen), built after
 [Plume Launcher](https://github.com/aradhyas8/Plume_Launcher) for Android TV, with Plex and today's football added.
 Made and tested on a Samsung **S90C** OLED (2023); it should run on Samsung TVs from about 2020 on.
 
-![Home, light](screens/home-light.jpg)
-![Home, dark](screens/home-dark.jpg)
+![Home](screens/home-dark.jpg)
+![The quick panel](screens/quick-panel.jpg)
+![Settings, with the live preview on the left](screens/settings.jpg)
 
 ## What's in it
 
-- **Home screen:** clock (12- or 24-hour), date and weather, a mountain wallpaper (light, dark or automatic at sunset), one row of app logos, and Plex Continue Watching.
+- **English or Arabic:** Settings → Language and Clock. Arabic turns the whole screen right to left, with Arabic team and competition names (IBM Plex Sans Arabic).
+- **Home screen:** clock (12- or 24-hour, Settings → Language and Clock or the quick panel), date and weather, a mountain wallpaper (light, dark or automatic at sunset), one row of app logos, and Plex Continue Watching.
 - **Wallpapers:** 24 mountain photos, one choice for both themes (Settings → Home screen → Wallpaper, with a light and dark preview). In dark mode a day photo is dimmed; the Rockies switch to their dusk photo; night photos (stars, moon) are for dark mode only. *A different mountain each day* goes through them. install.bat downloads the free Unsplash and Pexels photos once (`walls.ps1`, list in `walls.txt`) and packs them into Plume, so they change at once and work offline; one that couldn't be downloaded loads from the internet, or shows the Rockies.
 - **Quick panel** (the first icon at the top right): tiles for Theme, Clock (12/24-hour), Wallpaper (OK: the next one), Sleep screen now, Match alerts and Language, and round buttons for the matches row on/off, Refresh (matches, Plex and weather), Matches, Samsung Home and Settings. No volume: the remote does that. Hold OK on a tile or button to move it or hide it. Settings → Home screen → *Quick panel* brings hidden ones back in two groups, tiles and round buttons, and has 13 more you can turn on: Wallpaper each day, Logos, App names, Continue Watching row (shows or hides the whole row with its title), Sleep after, Subtitle style, Highlights play in, Resume watching, Next match, PS5, beIN, All apps, Plex app.
 - **Network:** focus the Wi-Fi icon at the top right to see the network's name and signal. (Samsung doesn't let apps change the network.)
@@ -24,12 +26,12 @@ Made and tested on a Samsung **S90C** OLED (2023); it should run on Samsung TVs 
 - **League page** (Right on the table beside the list, then OK): the whole table, and one list of results and coming matches two weeks each way, opening at today.
 - **Reminders** pop up 10 minutes before kick-off while Plume is on screen. OK switches to beIN.
 - **Sleep screen** after 1½ minutes idle (before an OLED's own protection screen at 2 minutes): drifting mountain and nature photos, a large clock with the date and weather, and up to three live or upcoming matches.
-- **Plex player:** a Continue Watching card plays right where you stopped, inside Plume, with Samsung's own video player (4K, HDR10, Dolby Vision, Dolby Atmos). Settings and Info on the left, −10 / pause / +10 in the middle, Next episode on the right; Up for the progress bar (hold to speed up). Each episode starts with Plex's own choices for it: its subtitle track, its audio track and its Original quality. The gear lists that episode's subtitles and audio, its Original (resolution and bitrate) and the lower steps below it; changes are saved to Plex. Several presses of −10/+10 make one jump. When the bar comes back it's on Play/Pause, in the middle. With the bar hidden, ◀ ▶ go back or forward 10 s. Info shows just the video, audio and subtitles. The gear lists Arabic and English subtitles first; the other languages are under *More subtitles*. The next episode plays after a 10-second countdown, from the same version. Your position is saved to Plex on every version of the title. Info shows the version playing and how subtitles are shown.
+- **Plex player:** a Continue Watching card plays right where you stopped, inside Plume, with Samsung's own video player (4K, HDR10, Dolby Vision, Dolby Atmos). Settings and Info on the left, −10 / pause / +10 in the middle, Next episode on the right; Up for the progress bar (hold to speed up). Each episode starts with Plex's own choices for it: its subtitle track, its audio track and its Original quality. The gear lists that episode's subtitles and audio, its Original (resolution and bitrate) and the lower steps below it; changes are saved to Plex. Several presses of −10/+10 make one jump. When the bar comes back it's on Play/Pause, in the middle. With the bar hidden, ◀ ▶ go back or forward 10 s. Info shows just the video, audio and subtitles. The gear lists Arabic and English subtitles first; the other languages are under *More subtitles*. The next episode plays after a 10-second countdown, from the same version. Your position is saved to Plex on every version of the title.
 - **Episodes:** hold OK on an episode in Continue Watching → *Episodes*: the show's seasons and episodes, with progress and watched marks. OK plays any episode in Plume's player.
 - **Hide:** hold OK on a card. *Remove from Continue Watching* takes away that one title until it's watched again. *Hide this show* (or *movie*) keeps the whole show off Plume, including episodes watched later on another device using the same Plex account. Plex itself keeps everything. Settings → Plex → *Hidden* lists hidden shows and movies; OK brings one back.
 - **Subtitle timing:** ⚙ → *Subtitle timing*, ◀ earlier / ▶ later by half a second, remembered per episode (for subtitles Plume draws). *Search subtitles online* lists the ones made for your exact file first.
-- **Subtitles:** SRT and WebVTT are drawn by Plume as clear white lines. ASS subtitles keep their own fonts, colours, outlines, positions and movement (drawn by libass, in `vendor/libass`, with the fonts stored in the video file); Settings → Plex → *Subtitle style: Simple* draws them as white lines instead, and Plume falls back to plain lines by itself if the engine can't start. A subtitle stored inside the video comes from Plex on its own (no conversion), or else Plume reads its lines straight out of the MKV file (`js/subfile.js`): where you are first, then the rest of the episode in about half a minute, so skips never wait. The last 10 episodes' lines are kept on the TV, so an episode opened again shows them at once. Only then does the server convert. Info (ⓘ) says which way worked.
-- **Versions** (4K and 1080p, or original and dubbed): one card plays the version you played last: if you watched a version further in the Plex app since you last stopped in Plume, that one; otherwise the one you played in Plume (with no history yet: the one furthest along, then 4K). Info shows which version is playing and why. Hold OK on the card to pick another version (*Play · 4K*, *Play · Arabic*, …); Plume remembers it. Settings → Plex → *Default quality*: Last played, 4K or 1080p (same language only).
+- **Subtitles:** SRT and WebVTT are drawn by Plume as clear white lines. ASS subtitles keep their own fonts, colours, outlines, positions and movement (drawn by libass, in `vendor/libass`, with the fonts stored in the video file); Settings → Plex → *Subtitle style: Simple* draws them as white lines instead, and Plume falls back to plain lines by itself if the engine can't start. A subtitle stored inside the video comes from Plex on its own (no conversion), or else Plume reads its lines straight out of the MKV file (`js/subfile.js`): where you are first, then the rest of the episode in about half a minute, so skips never wait. The last 10 episodes' lines are kept on the TV, so an episode opened again shows them at once. Only then does the server convert.
+- **Versions** (4K and 1080p, or original and dubbed): one card plays the version you played last: if you watched a version further in the Plex app since you last stopped in Plume, that one; otherwise the one you played in Plume (with no history yet: the one furthest along, then 4K). Hold OK on the card to pick another version (*Play · 4K*, *Play · Arabic*, …); Plume remembers it. Settings → Plex → *Default quality*: Last played, 4K or 1080p (same language only).
 - **Fold rows away:** press Up from the cards to reach a row's title (Continue Watching, or Today's matches when that row is on) and press OK to fold the row away; OK again opens it. Plume remembers it.
 - **Smooth on the TV:** rows slide on the graphics chip, focus effects fade ready-made layers, posters load at the size shown, and a held arrow never builds up a backlog.
 - **Settings** (gear icon): full screen over the blurred wallpaper, in groups: Apps, Inputs, Home screen, Sleep screen, Appearance, Language and Clock, Weather, Football, Plex, About. The left side shows a live preview of the focused group: a small home screen with your wallpaper, the sleep screen, your teams and the next big match, the clock in your format.
@@ -44,7 +46,9 @@ Plume isn't in Samsung's app store: you install it from a Windows PC with Samsun
 4. **A certificate for your TV.** Tizen Studio → Tools → **Certificate Manager** → **+** → **Samsung** → **TV** → give the profile a name → create a new author certificate (any name and password) → sign in with your Samsung account → in the distributor step, check that your TV's **DUID** is listed (it appears while the TV is connected) → Finish. Leave this profile **active** (the tick).
 5. **Install.** Download this repository (**Code → Download ZIP**), unzip it somewhere outside OneDrive (for example `C:\Plume`), open the folder and double-click **install.bat**. It asks nothing: it uses the active certificate profile and the connected TV (or finds the TV on your network), remembers both in `install.cfg`, then packages, signs, installs and opens Plume.
 
-To update later: replace the files with the new ones and double-click `install.bat` again. Your settings on the TV stay.
+The first run also downloads the wallpapers (about 10 MB) and packs them into Plume, so it takes a minute longer; later runs skip them.
+
+To update later: replace the files with the new ones (keep `install.cfg` and your `Plume\youtube-key.txt`) and double-click `install.bat` again. Your settings on the TV stay.
 
 ## YouTube key for highlights (optional, about 10 minutes, free)
 
@@ -57,7 +61,7 @@ Without a key Plume reads YouTube's plain search page, which YouTube sometimes b
 5. Optional but wise: on that key, **Edit → API restrictions → Restrict key → YouTube Data API v3 → Save**.
 6. Open `Plume\youtube-key.txt`, paste the key on its own line, save, and run `install.bat` again.
 
-Settings → Football → *YouTube key for highlights* then shows **Set**. The free allowance (about 100 searches a day) is far more than needed; each finished match you open costs one or two searches, and results are remembered for a few hours.
+The free allowance (about 100 searches a day) is far more than needed; each finished match you open costs one or two searches, and results are remembered for a few hours.
 
 ## First run on the TV
 
@@ -91,8 +95,14 @@ No account, no ads, no tracking. Plume connects only to:
 |---|---|
 | `Plume/` | The TV app (HTML, CSS, JavaScript; no build step) |
 | `Plume/js/` | `home.js` home screen · `football.js` feed and rules · `centre.js` match centre · `plex.js` · `apps.js` app row and logos · `settings.js` · `quick.js` quick panel · `walls.js` wallpapers · `sleep.js` · `tv.js` Samsung APIs |
+| `Plume/js/` (player) | `player.js` Plex player · `subfile.js` subtitles read from the MKV file, kept on the TV · `alerts.js` match alerts · `ytplayer.js` highlights |
+| `Plume/js/` (text) | `i18n.js` languages · `ar.js` Arabic text · `teams-ar.js` Arabic team names |
 | `install.bat` | Package, sign, install and open on the TV (Windows) |
+| `walls.ps1`, `walls.txt` | Download the wallpapers once into `Plume/img/walls` (install.bat runs it) |
 | `tests/harness.py` | Runs Plume in a browser with a stand-in TV, feed and Plex server, and checks the remote-control flows |
+| `tests/player_test.py` | The Plex player: playback, versions, subtitles (including reading them from an MKV file) |
+| `tests/i18n_check.js` | Every piece of Plume's text has its Arabic |
+| `tests/walls_list.js` | Makes `walls.txt` from `js/walls.js` |
 
 ## Credits
 
