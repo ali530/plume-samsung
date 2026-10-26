@@ -36,8 +36,8 @@
       act: function () { set('logos', get('logos') === 'mono' ? 'colour' : 'mono'); } },
     names: { icon: 'list', label: 'App names', value: function () { return NAMES[get('names')]; },
       act: function () { var l = ['focus', 'always', 'never']; set('names', l[(l.indexOf(get('names')) + 1) % 3]); } },
-    cwRow: { icon: 'rows', label: 'Continue Watching row', value: function () { return (get('folded') || {}).cw ? 'Folded' : 'Open'; },
-      act: function () { P.Home.toggleFold('cw'); } },
+    cwRow: { round: true, icon: 'cwCard', label: 'Continue Watching row', on: function () { return get('cwRow'); },
+      act: function () { set('cwRow', !get('cwRow')); } },
     sleepAfter: { icon: 'sleep', label: 'Sleep after', value: function () { var m = get('sleepMin'); return m ? P.t('{n} min', { n: String(m).replace('.5', '½') }) : 'Never'; },
       act: function () { var l = [1, 1.5, 2, 5, 10, 15, 30, 60, 0], i = l.indexOf(get('sleepMin')); set('sleepMin', l[(i + 1) % l.length]); } },
     subStyle: { icon: 'info', label: 'Subtitle style', value: function () { return get('subStyle') === 'plain' ? 'Simple' : 'Styled'; },
@@ -60,8 +60,8 @@
       Q.close(); P.Apps.open(it); }, leaves: true }
   };
   Object.keys(ALL).forEach(function (k) { ALL[k].key = k; });
-  var TILES = ['theme', 'clock', 'wall', 'sleep', 'alerts', 'lang', 'daily', 'logos', 'names', 'cwRow', 'sleepAfter', 'subStyle', 'highlights'],
-    ROUNDS = ['matchesRow', 'refresh', 'matches', 'home', 'settings', 'resume', 'nextMatch', 'ps5', 'bein', 'allApps', 'plexApp'];
+  var TILES = ['theme', 'clock', 'wall', 'sleep', 'alerts', 'lang', 'daily', 'logos', 'names', 'sleepAfter', 'subStyle', 'highlights'],
+    ROUNDS = ['matchesRow', 'cwRow', 'refresh', 'matches', 'home', 'settings', 'resume', 'nextMatch', 'ps5', 'bein', 'allApps', 'plexApp'];
   /* added later: hidden until you turn them on (quickOn); the first ones show until you hide them (quickHidden) */
   var EXTRA = ['daily', 'logos', 'names', 'cwRow', 'sleepAfter', 'subStyle', 'highlights', 'resume', 'nextMatch', 'ps5', 'bein', 'allApps', 'plexApp'];
   Q.ALL = ALL;

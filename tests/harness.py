@@ -658,6 +658,15 @@ async def main():
         await shot('17e-quick-panel-more')
         await key('Escape'); await pg.wait_for_timeout(300)
         await ev_("P.S.reset('quickOrder'); P.S.reset('quickHidden'); P.S.reset('quickOn')")
+        # Continue Watching row: off takes away the row and its title, like the matches row
+        await ev_("P.Quick.setShown('cwRow', true); P.Home.focus('icons','quick')"); await key('Enter'); await pg.wait_for_timeout(300)
+        await ev_("(function(){var b=[...document.querySelectorAll('#quick [data-i]')].filter(e=>e.innerHTML.indexOf('i-cwCard')>=0)[0]; P.Quick.at=+b.dataset.i;})()")
+        await key('Enter'); await pg.wait_for_timeout(300)
+        check('quick panel: Continue Watching row off hides the row and its title', await ev_("!P.S.get('cwRow') && document.getElementById('cwSec').hidden"))
+        await key('Enter'); await pg.wait_for_timeout(300)
+        check('...and on again brings them back', await ev_("P.S.get('cwRow') && !document.getElementById('cwSec').hidden"))
+        await key('Escape'); await pg.wait_for_timeout(300)
+        await ev_("P.S.reset('quickOn'); P.S.reset('cwRow')")
         # the Wi-Fi icon: focus shows the network
         await ev_("P.Home.focus('icons','net')"); await pg.wait_for_timeout(400)
         check('focus on the Wi-Fi icon shows the network card', await ev_("!document.getElementById('netCard').hidden && /Wi-Fi|Cable|Connected|Not connected|شبكة|واي/.test(document.getElementById('netCard').textContent)"))

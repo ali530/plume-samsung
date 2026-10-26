@@ -125,7 +125,8 @@
   /* ---------- Continue Watching ---------- */
   H.renderCW = function () {
     var X = P.Plex, sec = P.$('#cwSec'), row = P.$('#cwRow'), html = '';
-    if (X.state !== 'in') {
+    if (!P.S.get('cwRow')) html = '';        // switched off: the row and its title go
+    else if (X.state !== 'in') {
       html = '<div class="cwcard note" data-key="cw:connect"><div class="poster">' + '<div class="note-in">' + P.icon('play') +
         '<b>' + P.t('Connect Plex') + '</b><span>' + P.t('See what you were watching') + '</span></div></div></div>';
     } else if (!X.items.length && X.error) {
@@ -353,6 +354,7 @@
       if (k === 'clock24') H.tick();
       if (/^(row|logos|names|ps5Port|beinPort)$/.test(k)) H.renderApps();
       if (/^(matchesRow|favs|euBigOnly|comps|reminders)$/.test(k)) { H.renderMatchesRow(); H.renderStrip(); }
+      if (k === 'cwRow') H.renderCW();
     });
     H.focus('apps');
   };

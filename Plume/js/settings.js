@@ -14,7 +14,7 @@
   var THEME = { auto: 'Automatic', light: 'Light', dark: 'Dark' };
   var NAMES = { focus: 'On focus', always: 'Always', never: 'Never' };
   var SLEEP = [1, 1.5, 2, 5, 10, 15, 30, 60, 0];
-  var VERSION = '2.16.0';
+  var VERSION = '2.17.0';
   function sleepText() { var m = get('sleepMin'); return m ? P.t('after {n} min', { n: String(m).replace('.5', '½') }) : 'Never'; }
   function wallSummary() { return get('wpDaily') ? 'A different one each day' : P.Walls.name(P.Walls.byId(get('wp')) || P.Walls.rockies); }
   /* every photo, for both themes; the preview on the left shows the focused one in light and dark mode */
@@ -28,11 +28,15 @@
   }
   function quickPage() {
     var Q = P.Quick, o = Q.order();
+    var row = function (k) {
+      var it = Q.ALL[k];
+      return { label: it.label, icon: it.icon, round: !!it.round, prev: 'quick:' + k,
+        toggle: function () { return !Q.hidden(k); }, act: function () { Q.setShown(k, Q.hidden(k)); } };
+    };
     return { title: 'Quick panel', prev: 'quick', note: 'In the panel: hold OK on one to move it or hide it.',
-      rows: [{ section: 'Shown' }].concat(o.tiles.concat(o.rounds).map(function (k) {
-        var it = Q.ALL[k];
-        return { label: it.label, toggle: function () { return !Q.hidden(k); }, act: function () { Q.setShown(k, Q.hidden(k)); } };
-      }), [{ section: 'Order' }, { label: 'Back to the first order', value: function () { return ''; }, act: function () { set('quickOrder', null); P.UI.toast(P.t('Done')); } }]) };
+      rows: [{ section: 'Tiles · they show a setting and change it' }].concat(o.tiles.map(row),
+        [{ section: 'Round buttons · they do something at once' }], o.rounds.map(row),
+        [{ section: 'Order' }, { label: 'Back to the first order', value: function () { return ''; }, act: function () { set('quickOrder', null); P.UI.toast(P.t('Done')); } }]) };
   }
   S.switchLanguage = function () {
     set('lang', get('lang') === 'ar' ? 'en' : 'ar');
@@ -69,7 +73,9 @@
           note: 'A new photo every day, from the ones that suit the theme' },
         { label: 'Quick panel', value: function () { var Q = P.Quick, o = Q.order(), n = o.tiles.concat(o.rounds).filter(function (k) { return !Q.hidden(k); }).length; return P.t('{n} shown', { n: n }); }, open: 'quickp', prev: 'quick' },
         { section: 'Rows' },
-        { label: 'Matches row on home', toggle: function () { return get('matchesRow'); }, act: function () { set('matchesRow', !get('matchesRow')); } }
+        { label: 'Matches row on home', toggle: function () { return get('matchesRow'); }, act: function () { set('matchesRow', !get('matchesRow')); } },
+        { label: 'Continue Watching row on home', toggle: function () { return get('cwRow'); }, act: function () { set('cwRow', !get('cwRow')); },
+          note: 'Off: the row and its title go. To keep the title and hide only the cards, press OK on the title' }
       ] },
 
       wp: wallPage(),
@@ -187,7 +193,8 @@
   var PG = null;
   function rowHTML(r, n) {
     var val = r.toggle ? '<span class="sw' + (r.radio ? ' radio' : '') + (r.toggle() ? ' on' : '') + '"><i></i></span>' : '<span class="val">' + P.esc(P.t(r.value ? r.value() : '')) + (r.open ? (P.rtl ? ' ‹' : ' ›') : '') + '</span>';
-    return '<div class="s-row" data-r="' + n + '"><span class="lab">' + P.esc(P.t(r.label)) + (r.sub ? '<small>' + P.esc(P.t(r.sub)) + '</small>' : '') + '</span>' + val + '</div>';
+    var ic = r.icon ? '<span class="s-ic' + (r.round ? ' round' : '') + '">' + P.icon(r.icon) + '</span>' : '';
+    return '<div class="s-row' + (ic ? ' has-ic' : '') + '" data-r="' + n + '">' + ic + '<span class="lab">' + P.esc(P.t(r.label)) + (r.sub ? '<small>' + P.esc(P.t(r.sub)) + '</small>' : '') + '</span>' + val + '</div>';
   }
   S.render = function () {
     PG = pages();
@@ -288,10 +295,10 @@
     return '<div class="pv-th' + (on ? ' on' : '') + (sh.dim ? ' dim' : '') + '"><div class="pv-ti"><img src="' + P.esc(sh.url) + '" alt=""></div><span>' + P.esc(P.t(dark ? 'Dark mode' : 'Light mode')) +
       (shown !== w ? ' · ' + P.esc(P.Walls.name(shown)) : '') + '</span></div>';
   }
-  function quickMini() {
-    var Q = P.Quick, o = Q.order(), hid = get('quickHidden') || [];
-    var cell = function (k) { var it = Q.ALL[k]; return '<i class="' + (it.round ? 'r' : 't') + (Q.hidden(k) ? ' off' : '') + '">' + P.icon(it.icon) + (it.round ? '' : '<span>' + P.esc(P.t(it.label)) + '</span>') + '</i>'; };
-    var on = function (k) { return !Q.hidden(k); };
+  function quickMini(hi) {
+    var Q = P.Quick, o = Q.order();
+    var cell = function (k) { var it = Q.ALL[k]; return '<i class="' + (it.round ? 'r' : 't') + (Q.hidden(k) ? ' off' : '') + (k === hi ? ' hi' : '') + '">' + P.icon(it.icon) + (it.round ? '' : '<span>' + P.esc(P.t(it.label)) + '</span>') + '</i>'; };
+    var on = function (k) { return !Q.hidden(k) || k === hi; };
     return '<div class="pq-t">' + o.tiles.filter(on).map(cell).join('') + '</div><div class="pq-r">' + o.rounds.filter(on).map(cell).join('') + '</div>';
   }
   function crestFor(name) {
@@ -308,7 +315,12 @@
       return '<div class="pv-ths big">' + wallThumb(w, false) + wallThumb(w, true) + '</div>' +
         cap(P.Walls.name(w), P.t(P.Walls.credit(w)) + (w.night ? ' · ' + P.t('Dark mode only') : '') + (P.Walls.local(w) ? '' : ' · ' + P.t('from the internet')));
     }
-    if (kind === 'quick') return '<div class="pv-quick">' + quickMini() + '</div>' + cap('Quick panel', P.t('The first icon at the top right'));
+    if (kind.indexOf('quick') === 0) {
+      var qk = kind.split(':')[1], qi = qk && P.Quick.ALL[qk];
+      return '<div class="pv-quick">' + quickMini(qk) + '</div>' +
+        (qi ? cap(qi.label, P.t(qi.round ? 'Round button · does it at once' : 'Tile · shows the setting, OK changes it') + (P.Quick.hidden(qk) ? ' · ' + P.t('Hidden') : ''))
+          : cap('Quick panel', P.t('The first icon at the top right')));
+    }
     if (kind === 'home') { var c = P.Walls.chosen(dark); return nowHome() + '<div class="pv-ths">' + wallThumb(c, false) + wallThumb(c, true) + '</div>' + cap('Your home screen, as it is now'); }
     if (kind === 'apps') return miniHome(P.Walls.current(dark), dark, 'apps') + cap('Apps in row', P.count(P.Apps.row().length, 'app', 'apps'));
     if (kind === 'look') return nowHome() + cap(P.t('Theme') + ': ' + P.t(THEME[get('theme')]), P.t(get('logos') === 'mono' ? 'Mono' : 'Colour') + ' · ' + P.t(NAMES[get('names')]));

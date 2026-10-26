@@ -173,7 +173,10 @@ P.AR = {
   "couldn't load": 'تعذّر تحميلها', 'burned into the picture': 'مدمجة في الصورة', 'loading…': 'جارٍ التحميل…', 'styled': 'منسّقة', 'simple': 'بسيطة',
   'Nothing in Continue Watching': 'لا شيء في متابعة المشاهدة', '{n} shown': '{n} ظاهرة', 'Wallpaper each day': 'خلفية كل يوم',
   'Continue Watching row': 'صف متابعة المشاهدة', 'Sleep after': 'السكون بعد', 'Resume watching': 'تابع المشاهدة', 'Next match': 'المباراة التالية',
-  'Plex app': 'تطبيق Plex', 'Folded': 'مطوي', 'Open': 'مفتوح', 'More subtitles ({n})': 'ترجمات أخرى ({n})',
+  'Plex app': 'تطبيق Plex', 'Continue Watching row on home': 'صف متابعة المشاهدة في الرئيسية',
+  'Off: the row and its title go. To keep the title and hide only the cards, press OK on the title': 'عند الإيقاف: يختفي الصف وعنوانه. لإخفاء البطاقات فقط مع إبقاء العنوان، اضغط OK على العنوان', 'Folded': 'مطوي', 'Open': 'مفتوح', 'More subtitles ({n})': 'ترجمات أخرى ({n})',
+  'Tiles · they show a setting and change it': 'المربعات · تعرض إعدادًا وتغيّره', 'Round buttons · they do something at once': 'الأزرار الدائرية · تنفّذ مباشرة',
+  'Round button · does it at once': 'زر دائري · ينفّذ مباشرة', 'Tile · shows the setting, OK changes it': 'مربع · يعرض الإعداد، وOK يغيّره', 'Hidden': 'مخفي',
   // cities
   'Riyadh': 'الرياض', 'Jeddah': 'جدة', 'Mecca': 'مكة المكرمة', 'Medina': 'المدينة المنورة', 'Dammam': 'الدمام', 'Khobar': 'الخبر', 'Dhahran': 'الظهران',
   'Taif': 'الطائف', 'Abha': 'أبها', 'Tabuk': 'تبوك', 'Buraidah': 'بريدة', 'Hail': 'حائل', 'Jazan': 'جازان', 'Najran': 'نجران', 'AlUla': 'العُلا', 'Al Ahsa': 'الأحساء'

@@ -15,6 +15,7 @@
     names: 'focus',                // focus | always | never
     row: ['hdmi:ps5', 'hdmi:bein', 'app:plex', 'matches', 'app:youtube', 'app:netflix', 'app:shahid', 'app:appletv'],
     matchesRow: false,             // layout A's "Today's matches" row on the home screen
+    cwRow: true,                   // the Continue Watching row (and its title) on the home screen
     comps: { spl: true, kc: true, acle: true, acl2: true, cwc: true, wcq: true, wc: true, asian: true, gulf: true, friendly: true, ucl: true, epl: true, liga: true },
     euBigOnly: true,
     favs: ['Al Hilal', 'Saudi Arabia', 'Manchester United'],

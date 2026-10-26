@@ -65,6 +65,7 @@
     lang: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.5 3.6 5.5 3.6 8.5s-1 6-3.6 8.5c-2.6-2.5-3.6-5.5-3.6-8.5s1-6 3.6-8.5z"/>',
     theme: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
     matchRow: '<circle cx="12" cy="9" r="5.6"/><path d="M12 6.4l2.3 1.7-.9 2.7h-2.8l-.9-2.7z" fill="currentColor" stroke="none"/><path d="M12 3.4v3M17.4 8.1h-3.1M6.6 8.1h3.1M14.6 13.6l-1.2-2.8M9.4 13.6l1.2-2.8"/><rect x="3" y="17.2" width="18" height="3.6" rx="1.4"/>',
+    cwCard: '<rect x="3" y="5" width="18" height="12" rx="2.2"/><path d="M10.2 8.6v5l4.2-2.5z" fill="currentColor" stroke-linejoin="round"/><path d="M3 20.2h18"/><path d="M3 20.2h7" stroke-width="2.6"/>',
     rows: '<rect x="3.5" y="5" width="17" height="5.5" rx="1.6"/><rect x="3.5" y="13.5" width="17" height="5.5" rx="1.6"/>',
     sleep: '<path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/><path d="M15 4h3.5L15 8h3.5" stroke-linejoin="round"/>',
     info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1" fill="currentColor" stroke="none"/>',
