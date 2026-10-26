@@ -22,6 +22,7 @@
     plexPicks: {},
     subOffsets: {},                // subtitle timing you set, per episode/film and subtitle (ms)
     folded: {},                    // rows folded away on the home screen: {cw: true, matches: true}
+    subStyle: 'file',              // ASS subtitles: file (their own fonts, colours, places: libass) | plain (white lines)
     highlightsIn: 'plume',         // where highlights play: plume (in Plume) | app (the YouTube app: your account, no ads)
     matchAlerts: true,             // kick-off, goals and full time of your teams' matches and reminded ones
     alertWhat: { kickoff: true, goal: true, red: true, ht: false, sh: false, ft: true, pen: false },   // which alerts

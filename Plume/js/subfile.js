@@ -14,7 +14,8 @@
     INFO: 0x1549A966, SCALE: 0x2AD7B1, TRACKS: 0x1654AE6B, ENTRY: 0xAE, NUMBER: 0xD7, TYPE: 0x83, CODEC: 0x86, PRIVATE: 0x63A2,
     LANG: 0x22B59C, NAME: 0x536E, ENCODINGS: 0x6D80, ENCODING: 0x6240, COMPRESSION: 0x5034, COMPALGO: 0x4254, COMPSET: 0x4255,
     ENCRYPTION: 0x5035, CUES: 0x1C53BB6B, CUEPOINT: 0xBB, CUETIME: 0xB3, CUEPOS: 0xB7, CUETRACK: 0xF7, CUECLUSTER: 0xF1,
-    CUEREL: 0xF0, CUEDUR: 0xB2, CLUSTER: 0x1F43B675, TIMECODE: 0xE7, SIMPLEBLOCK: 0xA3, GROUP: 0xA0, BLOCK: 0xA1, BLOCKDUR: 0x9B };
+    CUEREL: 0xF0, CUEDUR: 0xB2, CLUSTER: 0x1F43B675, TIMECODE: 0xE7, SIMPLEBLOCK: 0xA3, GROUP: 0xA0, BLOCK: 0xA1, BLOCKDUR: 0x9B,
+    ATTACHMENTS: 0x1941A469, ATTACHED: 0x61A7, FILENAME: 0x466E, FILEMIME: 0x4660, FILEDATA: 0x465C };
   var utf8 = new TextDecoder('utf-8');
 
   /* ---------- EBML: the building blocks of an MKV file ---------- */
@@ -97,7 +98,7 @@
   }
 
   function layout(get) {
-    var L = { seg: 0, scale: 1000000, tracks: null, cuesAt: -1 };
+    var L = { seg: 0, scale: 1000000, tracks: null, cuesAt: -1, attachAt: -1 };
     return get(0, 262143).then(function (u) {
       var p = 0, seg = null;
       each(u, 0, u.length, function (id, d, size, h) { if (id === ID.SEGMENT) { seg = { d: d, size: size }; return false; } });
@@ -114,9 +115,11 @@
           var sid = 0, spos = -1;
           each(u, d2, d2 + s2, function (i3, d3, s3) { if (i3 === ID.SEEKID) sid = uint(u, d3, s3); if (i3 === ID.SEEKPOS) spos = uint(u, d3, s3); });
           if (sid === ID.CUES) L.cuesAt = L.seg + spos;
+          if (sid === ID.ATTACHMENTS) L.attachAt = L.seg + spos;
           if (sid === ID.TRACKS && !L.tracks) need.push({ id: ID.TRACKS, at: L.seg + spos, end: -1 });
         });
         if (id === ID.CUES && size >= 0) L.cuesAt = h;
+        if (id === ID.ATTACHMENTS) L.attachAt = h;
       });
       // the track list further into the file (big font attachments before it, for example)
       var tr = need.filter(function (n) { return n.id === ID.TRACKS; })[0];
@@ -178,9 +181,13 @@
       // ReadOrder, Layer, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       var parts = text.split(','), style = (parts[2] || '').trim();
       text = parts.slice(8).join(',');
-      if (/\{[^}]*\\p[1-9]/.test(text)) return null;               // a drawn shape, not words
+      var raw = { ReadOrder: +parts[0] || 0, Layer: +parts[1] || 0, Style: style, Name: parts[3] || '', MarginL: +parts[4] || 0, MarginR: +parts[5] || 0,
+        MarginV: +parts[6] || 0, Effect: parts[7] || '', Text: text };
+      if (/\{[^}]*\\p[1-9]/.test(text)) return { raw: raw, skip: true };   // a drawn shape: for the styled look only
       top = !!tops[style] || /\\an[789]/.test(text) || /\\a(5|6|7|9|10|11)(?!\d)/.test(text);
       text = text.replace(/\{[^}]*\}/g, '').replace(/\\N/gi, '\n').replace(/\\h/g, ' ');
+      text = text.replace(/[ \t]+\n/g, '\n').trim();
+      return { t: text, top: top, raw: raw, skip: !text };
     } else {                                                        // SRT inside the file (may carry {\an8} too)
       top = /\{[^}]*\\an[789][^}]*\}/.test(text);
       text = text.replace(/\{\\[^}]*\}/g, '').replace(/<[^>]+>/g, '');
@@ -215,6 +222,30 @@
     return blk;
   }
 
+  /* ---------- fonts stored in the file ---------- */
+  function readFonts(get, L, maxBytes) {
+    if (L.attachAt < 0) return Promise.resolve([]);
+    return get(L.attachAt, L.attachAt + 15).then(function (h) {
+      var id = readId(h, 0), sz = id && readSize(h, id.len);
+      if (!id || id.id !== ID.ATTACHMENTS || !sz || sz.size < 0) return [];
+      if (sz.size > maxBytes) throw new Error('the fonts in the file are too big (' + Math.round(sz.size / 1048576) + ' MB)');
+      var d = L.attachAt + id.len + sz.len;
+      return get(d, d + sz.size - 1).then(function (u) {
+        var out = [];
+        each(u, 0, u.length, function (aid, ad, as) {
+          if (aid !== ID.ATTACHED) return;
+          var f = { name: '', mime: '', data: null };
+          each(u, ad, ad + as, function (fid, fd, fs) {
+            if (fid === ID.FILENAME) f.name = str(u, fd, fs); else if (fid === ID.FILEMIME) f.mime = str(u, fd, fs);
+            else if (fid === ID.FILEDATA) f.data = u.slice(fd, fd + fs);
+          });
+          if (f.data && (/font|truetype|opentype/i.test(f.mime) || /\.(ttf|otf|ttc|woff2?)$/i.test(f.name))) out.push(f);
+        });
+        return out;
+      });
+    });
+  }
+
   /* ---------- the reader ---------- */
   P.SubFile = {
     open: function (url, want) {
@@ -236,7 +267,10 @@
         var tops = topStyles(tr.priv), ms = L.scale / 1000000;
         return readCues(get, L).then(function (cues) {
           var mine = want.noIndex ? [] : cues.filter(function (c) { return c.track === tr.num && c.cluster >= 0; });   // noIndex: for the tests
-          var R = { mode: mine.length && mine.every(function (c) { return c.rel >= 0; }) ? 'index' : 'pieces', codec: tr.codec, lines: mine.length, used: get.used };
+          var R = { mode: mine.length && mine.every(function (c) { return c.rel >= 0; }) ? 'index' : 'pieces', codec: tr.codec, lines: mine.length, used: get.used,
+            header: tr.priv && /^S_TEXT\/(ASS|SSA)/i.test(tr.codec) ? utf8.decode(tr.priv) : '' };
+          /* the fonts stored in the file (for the styled look), up to maxBytes in all */
+          R.fonts = function (maxBytes) { return readFonts(get, L, maxBytes); };
           var heads = {};             // cluster → where its blocks start, and its time
           var head = function (cl) {
             if (heads[cl]) return heads[cl];
@@ -253,7 +287,8 @@
             var a = (clTime + blk.rel) * ms, len = blk.dur >= 0 ? blk.dur * ms : cueDur >= 0 ? cueDur * ms : 3000;
             return payload(tr, blk.data).then(function (bytes) {
               var l = makeLine(tr, tops, utf8.decode(bytes));
-              return l ? { a: a, b: a + len, t: l.t, top: l.top } : null;
+              if (!l) return null;
+              return { a: a, b: a + len, t: l.skip ? '' : l.t, top: l.top, raw: l.raw || null, skip: !!l.skip };
             });
           };
           if (R.mode === 'index') {

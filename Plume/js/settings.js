@@ -34,6 +34,8 @@
         { label: 'Account', value: function () { return plex ? plex.user : 'Sign in'; }, act: function () { if (get('plex')) S.plexSignOut(); else S.plexSignIn(); } },
         plex ? { label: 'Default quality', value: function () { return { last: 'Last played', '4k': '4K', '1080': '1080p' }[get('plexCopy')]; }, act: cycle('plexCopy', ['last', '4k', '1080']) } : null,
         plex ? { label: 'Hidden', value: function () { var n = P.Plex.hiddenList().length; return n ? P.count(n, 'title', 'titles') : 'None'; }, open: 'hidden' } : null,
+        plex ? { label: 'Subtitle style', value: function () { return get('subStyle') === 'plain' ? 'Plain lines' : 'As in the file'; }, act: cycle('subStyle', ['file', 'plain']),
+          note: 'As in the file: ASS subtitles keep their own fonts, colours and places on screen. Plain: clear white lines' } : null,
         plex ? { label: 'Next episode', value: function () { return get('autoNext') ? 'Plays automatically' : 'Ask first'; }, act: function () { set('autoNext', !get('autoNext')); } } : null,
         { section: 'Football' },
         { label: 'Competitions', value: function () { var c = get('comps'); return P.t('{a} of {b}', { a: Object.keys(c).filter(function (k) { return c[k]; }).length, b: F.COMPS.length }); }, open: 'comps' },
@@ -51,7 +53,7 @@
         { section: 'Weather' },
         { label: 'City', value: function () { return P.t(get('city')); }, open: 'city' },
         { section: 'About' },
-        { label: 'Plume for Samsung', value: function () { return P.t('Version {v}', { v: '2.12' }); }, act: function () {} }
+        { label: 'Plume for Samsung', value: function () { return P.t('Version {v}', { v: '2.13' }); }, act: function () {} }
       ].filter(Boolean) },
 
       row: { title: 'Apps in row', rows: P.Apps.all().map(function (it) {

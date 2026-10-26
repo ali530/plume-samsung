@@ -342,9 +342,50 @@ async def main():
         for _ in range(8):
             shown.add(await ev("document.getElementById('plSub').textContent")); shown.add('TOP:' + await ev("document.getElementById('plSubTop').textContent"))
             await pg.wait_for_timeout(250)
-        check('...lines show in time; the Sign style goes on top; no drawn shapes', any('سطر رقم' in x for x in shown) and 'TOP:لافتة المطعم' in shown and not any('m 0 0' in x for x in shown), sorted(shown))
-        check('top lines are centred like the others', await ev("getComputedStyle(document.getElementById('plSubTop')).display") == 'block')
+        check('...lines show in time; the Sign style goes on top; no drawn shapes', any('سطر رقم' in x for x in shown) and any(x.startswith('TOP:') and 'لافتة المطعم' in x for x in shown) and not any('m 0 0' in x for x in shown), sorted(shown))
+        check('top lines are centred like the others', await ev("getComputedStyle(document.getElementById('plSubTop')).display") != 'flex')
         await shot('p9-subs-from-file')
+        await key('Escape', 200); await key('Escape', 900)
+        # the styled look (the default): libass draws on the canvas over the picture, with the font stored in the file
+        PIX = "(function(){var c=document.getElementById('plAss');if(!c)return 0;var d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,n=0;for(var i=3;i<d.length;i+=16)if(d[i]>0)n++;return n;})()"
+        subsmode['plexsub'] = 'ok'
+        await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})")
+        for _ in range(30):
+            await pg.wait_for_timeout(300)
+            if await ev("!!(P.Player.debug() && P.Player.debug().ass && P.Player.debug().ass.ready)"): break
+        await ev("window.__avjump(4000)"); await pg.wait_for_timeout(800)
+        st5 = await ev("(function(){var s=P.Player.debug();return {ready:!!(s.ass&&s.ass.ready), fonts:s.ass?s.ass.urls.length:0, on:document.getElementById('player').classList.contains('ass-on'), plain:getComputedStyle(document.getElementById('plSub')).display, note:s.styleNote}})()")
+        px = await ev(PIX)
+        check('styled: libass draws over the picture, plain lines step aside', st5['ready'] and st5['on'] and st5['plain'] == 'none' and px > 200, [st5, px])
+        check('...with the font stored in the file', st5['fonts'] == 1, st5)
+        await shot('p10-subs-styled')
+        info = await ev("(function(){P.Player.layer.key('up');return 1;})()")
+        await key('Escape', 200); await key('Escape', 900)
+        # read from the file, styled: lines are added to the engine as they arrive
+        subsmode['plexsub'] = 'refuse'
+        await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})")
+        for _ in range(30):
+            await pg.wait_for_timeout(300)
+            if await ev("!!(P.Player.debug() && P.Player.debug().ass && P.Player.debug().ass.ready && P.Player.debug().ass.styles)"): break
+        await ev("window.__avjump(4000)"); await pg.wait_for_timeout(1000)
+        st6 = await ev("(function(){var s=P.Player.debug();return {how:s.subHow, ready:!!(s.ass&&s.ass.ready), styles:s.ass&&s.ass.styles}})()")
+        px = await ev(PIX)
+        check('styled from the file: styles known, lines drawn', st6['how'] == 'Read from the file' and st6['ready'] and 'Sign' in (st6['styles'] or {}) and px > 200, [st6, px])
+        await shot('p11-subs-styled-from-file')
+        await key('Escape', 200); await key('Escape', 900)
+        # Settings → Subtitle style: Plain lines → no engine, Plume's lines
+        await ev("P.S.set('subStyle','plain')")
+        await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(2500)
+        st7 = await ev("(function(){var s=P.Player.debug();return {ass:!!s.ass, on:document.getElementById('player').classList.contains('ass-on'), n:(s.cues||[]).length}})()")
+        check('Subtitle style: Plain lines → Plume draws them, no engine', not st7['ass'] and not st7['on'] and st7['n'] > 5, st7)
+        await key('Escape', 200); await key('Escape', 900)
+        await ev("P.S.set('subStyle','file')")
+        # the engine fails: plain lines come back at once, and Info says why
+        await ev("(function(){ window.__realOct = window.SubtitlesOctopus; window.SubtitlesOctopus = function(){ throw new Error('no WebAssembly here'); }; })()")
+        await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(3000)
+        st8 = await ev("(function(){var s=P.Player.debug();return {ass:!!s.ass, on:document.getElementById('player').classList.contains('ass-on'), note:s.styleNote, n:(s.cues||[]).length}})()")
+        check('engine fails → plain lines, with the reason', not st8['ass'] and not st8['on'] and 'WebAssembly' in (st8['note'] or '') and st8['n'] > 5, st8)
+        await ev("(function(){ window.SubtitlesOctopus = window.__realOct; })()")
         await key('Escape', 200); await key('Escape', 900)
         subsmode['plexsub'] = None
         await ev("window.__staleErrors = true; window.__absTime = true")

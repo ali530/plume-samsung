@@ -118,7 +118,7 @@
   }
   function loadSubs(sub) {
     st.cues = null; st.cueAt = 0; st.subOff = null; setSubText(''); stopEmbedded();
-    clearInterval(st.fileT); st.fileSubs = null;
+    clearInterval(st.fileT); st.fileSubs = null; stopStyled(); st.styleNote = '';
     st.subHow = sub ? 'Loading…' : '';
     var want = st.subGen = (st.subGen || 0) + 1;
     if (!sub || IMAGE_SUBS.test(sub.codec || '')) { st.subHow = sub ? 'Drawn into the picture by the server' : ''; return; }
@@ -131,6 +131,7 @@
         var cues = parseSubs(t);
         if (!cues.length) throw new Error('empty');
         st.cues = cues; st.subHow = 'Drawn by Plume'; subsAt(st.t);
+        if (isAssText(t)) styledFromText(t, want);
       })
       .catch(function (e) {
         if (!st || st.subGen !== want) return;
@@ -139,9 +140,10 @@
         // 3) Plume reads it from the file; then the server's conversions as before
         st.subLog = (st.subLog || []).concat('subtitle file: ' + (e && e.message || 'error'));
         st.subHow = 'Asking Plex for them…';
-        fromPlex(sub).then(function (cues) {
+        fromPlex(sub).then(function (got) {
           if (!st || st.subGen !== want) return;
-          st.cues = cues; st.subHow = 'Sent by Plex'; subsAt(st.t);
+          st.cues = got.cues; st.subHow = 'Sent by Plex'; subsAt(st.t);
+          if (isAssText(got.raw)) styledFromText(got.raw, want);
         }, function (e1) {
           if (!st || st.subGen !== want) return;
           st.subLog = st.subLog.concat('Plex on its own: ' + e1.message);
@@ -153,6 +155,96 @@
           fromFile(sub, want);
         });
       });
+  }
+
+  /* ---------- the styled look (Settings → Plex → Subtitle style: As in the file): ASS drawn as the file styles it ----------
+     libass (vendor/libass, the engine VLC and Plex's web player use) draws on a canvas over the video, with the file's
+     own fonts, colours, outlines, positions and movement. Plume keeps its plain lines ready underneath: if the engine
+     can't start or stops, they show again at once. */
+  var LIB = 'vendor/libass/', libP = null;
+  function styled() { return P.S.get('subStyle') !== 'plain'; }
+  function isAssText(t) { return /^\s*\[Script Info\]/i.test(String(t || '').replace(/^\uFEFF/, '')) && /^\s*Dialogue:/im.test(t); }
+  function abs(u) { return new URL(u, location.href).href; }
+  function loadLib() {
+    if (window.SubtitlesOctopus) return Promise.resolve();
+    if (libP) return libP;
+    return (libP = new Promise(function (ok, no) {
+      var s = document.createElement('script'); s.src = LIB + 'subtitles-octopus.js';
+      s.onload = ok; s.onerror = function () { libP = null; no(new Error("couldn't load the subtitle engine")); };
+      document.body.appendChild(s);
+    }));
+  }
+  function fontsFromFile() {          // the fonts stored in the video file, when it's an MKV the TV plays as it is
+    var pl = st.plan, s = srv();
+    if (!P.SubFile || !/\.mkv(\?|$)/i.test(pl.part.key || '')) return Promise.resolve([]);
+    return P.SubFile.open(s.uri + pl.part.key + (pl.part.key.indexOf('?') < 0 ? '?' : '&') + 'X-Plex-Token=' + tok(), { index: (pl.sub || {}).index, nth: 0, lang: '' })
+      .then(function (R) { return R.fonts(25 * 1048576); })
+      .catch(function (e) { st.styleNote = 'fonts: ' + e.message; return []; });
+  }
+  function styledFromText(txt, want) {
+    if (!styled()) return;
+    fontsFromFile().then(function (fonts) { if (st && st.subGen === want) startStyled(txt, fonts, want, false); });
+  }
+  function startStyled(content, fonts, want, feed) {
+    stopStyled();
+    var mine = st;
+    loadLib().then(function () {
+      if (st !== mine || st.subGen !== want) return;
+      var urls = (fonts || []).map(function (f) { return URL.createObjectURL(new Blob([f.data])); });
+      var A = { oct: null, ready: false, feed: !!feed, queue: [], styles: null, urls: urls, gen: want };
+      st.ass = A;
+      var fail = function (why) {
+        if (st !== mine || st.ass !== A) return;
+        stopStyled(); st.styleNote = why || 'the subtitle engine stopped';
+      };
+      A.timer = setTimeout(function () { if (!A.ready) fail("the subtitle engine didn't start"); }, 12000);
+      try {
+        A.oct = new SubtitlesOctopus({
+          canvas: P.$('#plAss'), subContent: content, workerUrl: abs(LIB + 'subtitles-octopus-worker.js'),
+          fonts: urls.concat([abs('css/noto-sans-arabic-arabic-wght-normal.woff2')]), fallbackFont: abs(LIB + 'default.woff2'),
+          targetFps: 24, maxRenderHeight: 1080, libassMemoryLimit: 40, libassGlyphLimit: 40,
+          onError: function () { fail('the subtitle engine stopped'); },
+          onReady: function () {
+            if (st !== mine || st.ass !== A) return;
+            A.ready = true; clearTimeout(A.timer);
+            root.classList.add('ass-on'); setSubText('');
+            if (!A.feed) { syncStyled(true); return; }
+            A.oct.getStyles(function (list) {            // a line names its style; the engine wants the style's number
+              A.styles = {}; (list || []).forEach(function (s, i) { A.styles[s.Name] = s._index != null ? s._index : i; });
+              var q = A.queue; A.queue = []; feedStyled(q); syncStyled(true);
+            }, function () { A.styles = {}; var q = A.queue; A.queue = []; feedStyled(q); syncStyled(true); });
+          }
+        });
+      } catch (e) { fail(e.message); }
+    }, function (e) { if (st === mine) st.styleNote = e.message; });
+  }
+  function feedStyled(lines) {
+    var A = st && st.ass; if (!A || !A.feed || !lines || !lines.length) return;
+    if (!A.styles) { A.queue = A.queue.concat(lines); return; }
+    lines.forEach(function (l) {
+      if (!l.raw) return;
+      var r = l.raw;
+      A.oct.createEvent({ Start: Math.round(l.a), Duration: Math.max(1, Math.round(l.b - l.a)), ReadOrder: r.ReadOrder, Layer: r.Layer,
+        Style: A.styles[r.Style] != null ? A.styles[r.Style] : (A.styles.Default != null ? A.styles.Default : 0), Name: r.Name,
+        MarginL: r.MarginL, MarginR: r.MarginR, MarginV: r.MarginV, Effect: r.Effect, Text: r.Text });
+    });
+    syncStyled(true);
+  }
+  function syncStyled(force) {
+    var A = st && st.ass; if (!A || !A.ready) return;
+    var t = Math.max(0, (st.t - (st.subOff || 0)) / 1000), paused = !st.playing;
+    if (!force && A.lastPaused === paused && Math.abs(t - (A.lastT || 0)) < 0.05) return;
+    A.lastPaused = paused; A.lastT = t;
+    try { A.oct.setIsPaused(paused, t); } catch (e) {}
+  }
+  function stopStyled() {
+    if (!st || !st.ass) return;
+    var A = st.ass; st.ass = null;
+    clearTimeout(A.timer);
+    try { if (A.oct) A.oct.dispose(); } catch (e) {}
+    A.urls.forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+    if (root) { root.classList.remove('ass-on'); var c = P.$('#plAss'); if (c) { try { c.getContext('2d').clearRect(0, 0, c.width, c.height); } catch (e) {} } }
+    lastSub = null; lastTop = null; if (st.cues) subsAt(st.t);
   }
 
   /* 1) Plex sends the subtitle on its own while the video plays untouched (no conversion of the picture) */
@@ -174,7 +266,7 @@
             if (!r.ok) throw new Error('server said ' + r.status + (txt ? ': ' + txt.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : ''));
             var cues = parseSubs(txt);
             if (!cues.length) throw new Error('nothing in what it sent');
-            return cues;
+            return { cues: cues, raw: txt };
           });
         }).catch(function (e) { clearTimeout(t); errs.push(e.name === 'AbortError' ? 'no answer' : e.message); throw new Error(errs.join(' / ')); });
       });
@@ -192,6 +284,9 @@
       { index: sub.index, nth: inFile.indexOf(sub), lang: sub.languageCode || '' }).then(function (R) {
       if (!st || st.subGen !== want) return;
       var mine = st.fileSubs = { R: R, busy: false, first: true, have: {} };
+      if (styled() && R.header) R.fonts(25 * 1048576).catch(function (e) { st.styleNote = 'fonts: ' + e.message; return []; }).then(function (fonts) {
+        if (st && st.fileSubs === mine) startStyled(R.header, fonts, want, true);
+      });
       var ahead = R.mode === 'index' ? 120000 : 25000;
       var pull = function () {
         if (!st || st.fileSubs !== mine) { clearInterval(t2); return; }
@@ -200,8 +295,10 @@
         R.fill(Math.max(0, st.t - (st.subOff || 0)), st.t + ahead).then(function (lines) {
           mine.busy = false;
           if (!st || st.fileSubs !== mine) return;
-          var add = lines.filter(function (l) { var k = l.a + '|' + l.t; if (mine.have[k]) return false; mine.have[k] = true; return true; });
-          if (add.length) { st.cues = (st.cues || []).concat(add).sort(function (x, y) { return x.a - y.a; }); subsAt(st.t); }
+          var add = lines.filter(function (l) { var k = l.a + '|' + (l.raw ? l.raw.Text : l.t); if (mine.have[k]) return false; mine.have[k] = true; return true; });
+          var plain = add.filter(function (l) { return !l.skip; });
+          if (plain.length) { st.cues = (st.cues || []).concat(plain).sort(function (x, y) { return x.a - y.a; }); subsAt(st.t); }
+          feedStyled(add);
           if (mine.first) { mine.first = false; st.subHow = R.mode === 'index' ? 'Read from the file' : 'Read from the file, piece by piece'; }
         }, function (e) {
           mine.busy = false;
@@ -370,7 +467,7 @@
 
   function build() {
     root = P.el('div', 'pl'); root.id = 'player';
-    root.innerHTML = '<object id="avp" type="application/avplayer"></object>' +
+    root.innerHTML = '<object id="avp" type="application/avplayer"></object><canvas class="pl-ass" id="plAss" width="1920" height="1080"></canvas>' +
       '<div class="pl-sub" id="plSub"></div><div class="pl-sub top" id="plSubTop"></div>' +
       '<div class="pl-wait" id="plWait"><i></i></div>' +
       '<div class="pl-ui" id="plUi"><div class="pl-shade"></div>' +
@@ -623,7 +720,7 @@
     var how = pl.direct ? P.t('Directly, no conversion') : pl.remuxSubs ? P.t('Repackaged: picture and sound copied, subtitles sent as text') : pl.q ? P.t('Converted to {q}', { q: qq ? P.t(qq.label) : '' }) : pl.burn ? P.t('Picture converted to show subtitles') : P.t('Audio converted, picture original');
     var sl = pl.sub ? labels(pl.subs, true)[pl.subs.indexOf(pl.sub)] : P.t('Off');
     var rows = [['Video', [res, dr, (m.videoCodec || '').toUpperCase()].filter(Boolean).join(' · ')],
-      ['Audio', pl.audio ? labels(pl.audios, false)[pl.audios.indexOf(pl.audio)] : '—'], ['Subtitles', sl + (st.subHow ? ' — ' + P.t(st.subHow) : '')],
+      ['Audio', pl.audio ? labels(pl.audios, false)[pl.audios.indexOf(pl.audio)] : '—'], ['Subtitles', sl + (st.subHow ? ' — ' + P.t(st.subHow) : '') + (st.ass && st.ass.ready ? ' · ' + P.t('styled as in the file') : pl.sub && st.styleNote ? ' · ' + P.t('plain') + ' (' + st.styleNote + ')' : '')],
       ['Version', st.versionLabel || '—'], ['Playing', how], ['Server', srv().name], ['Bitrate', m.bitrate ? mbps(m.bitrate) : '—']];
     P.$('#plInfo').innerHTML = rows.map(function (r) { return '<div><span>' + P.t(r[0]) + '</span><b>' + P.esc(r[1]) + '</b></div>'; }).join('');
   }
@@ -704,6 +801,7 @@
     if (!st) return;
     var t = st.t;
     if (st.cues) subsAt(t);
+    syncStyled();
     // skip intro: only when Plex marked the intro
     var intro = (st.markers || []).filter(function (m) { return m.type === 'intro' && t >= m.startTimeOffset && t < m.endTimeOffset - 1500; })[0];
     st.skipTo = intro ? intro.endTimeOffset : null;
@@ -834,7 +932,7 @@
     if (st.key) P.Plex.snapshot(st.card, st.key);
     if (st.plan && !st.plan.direct) ping('/video/:/transcode/universal/stop?session=' + st.session);
     try { av().stop(); av().close(); } catch (e) {}
-    clearInterval(tickT); clearInterval(saveT); clearInterval(otherT); clearTimeout(hideT); clearTimeout(jumpT); clearInterval(st.vttT); clearInterval(st.fileT); st.fileSubs = null;
+    clearInterval(tickT); clearInterval(saveT); clearInterval(otherT); clearTimeout(hideT); clearTimeout(jumpT); clearInterval(st.vttT); clearInterval(st.fileT); st.fileSubs = null; stopStyled();
     st = null; V.open_ = false;
     if (root) { root.remove(); root = null; } subEl = null;
     document.body.classList.remove('playing');

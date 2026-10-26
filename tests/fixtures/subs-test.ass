@@ -5,8 +5,8 @@ PlayResY: 1080
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,60,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,40,1
-Style: Sign,Arial,50,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,1,8,10,10,40,1
+Style: Default,Arial,64,&H0066E6FF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,40,1
+Style: Sign,Caladea,56,&H00442A1C,&H000000FF,&H00DCEBF0,&H00DCEBF0,0,0,0,0,100,100,0,0,3,6,0,8,10,10,40,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -35,6 +35,6 @@ Dialogue: 0,0:00:50.90,0:00:52.70,Default,,0,0,0,,سطر رقم 22, مرحبا\N
 Dialogue: 0,0:00:53.30,0:00:55.09,Default,,0,0,0,,سطر رقم 23, مرحبا\Nالسطر الثاني
 Dialogue: 0,0:00:55.70,0:00:57.49,Default,,0,0,0,,سطر رقم 24, مرحبا\Nالسطر الثاني
 Dialogue: 0,0:00:58.09,0:00:59.89,Default,,0,0,0,,سطر رقم 25, مرحبا\Nالسطر الثاني
-Dialogue: 0,0:00:03.00,0:00:09.00,Sign,,0,0,0,,{\fad(200,200)}لافتة المطعم
+Dialogue: 0,0:00:03.00,0:00:09.00,Sign,,0,0,0,,{\fad(200,200)\frz6\pos(500,300)}Beach Cafe · لافتة المطعم
 Dialogue: 0,0:00:12.00,0:00:14.00,Default,,0,0,0,,{\an8}فوق
 Dialogue: 0,0:00:20.00,0:00:22.00,Default,,0,0,0,,{\p1}m 0 0 l 100 100{\p0}
