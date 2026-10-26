@@ -14,18 +14,26 @@
   var THEME = { auto: 'Automatic', light: 'Light', dark: 'Dark' };
   var NAMES = { focus: 'On focus', always: 'Always', never: 'Never' };
   var SLEEP = [1, 1.5, 2, 5, 10, 15, 30, 60, 0];
-  var VERSION = '2.14.0';
+  var VERSION = '2.15.0';
   function sleepText() { var m = get('sleepMin'); return m ? P.t('after {n} min', { n: String(m).replace('.5', '½') }) : 'Never'; }
-  function wallSummary() { return get('wpDaily') ? 'A different one each day' : P.Walls.name(P.Walls.current(P.Home.dark)); }
-  /* the photos for one mode; the preview on the left shows the focused one on a small home screen */
-  function wallPage(mode) {
-    var key = mode === 'dark' ? 'wpDark' : 'wpLight';
-    return { title: mode === 'dark' ? 'Dark mode wallpaper' : 'Light mode wallpaper', prev: 'wall:' + mode,
-      note: get('wpDaily') ? 'A different mountain each day is on: choosing one here turns it off' : '',
-      rows: P.Walls.list(mode).map(function (w) {
-        return { label: w.name, sub: P.Walls.credit(w), radio: true, wall: w, toggle: function () { return get(key) === w.id; },
-          act: function () { set(key, w.id); set('wpDaily', false); } };
+  function wallSummary() { return get('wpDaily') ? 'A different one each day' : P.Walls.name(P.Walls.byId(get('wp')) || P.Walls.rockies); }
+  /* every photo, for both themes; the preview on the left shows the focused one in light and dark mode */
+  function wallPage() {
+    return { title: 'Wallpaper', prev: 'wall',
+      note: get('wpDaily') ? 'A different mountain each day is on: choosing one here turns it off' : 'One photo for both themes. Dark mode dims a day photo',
+      rows: P.Walls.all.map(function (w) {
+        return { label: w.name, sub: P.t(P.Walls.credit(w)) + (w.night ? ' · ' + P.t('Dark mode only') : ''), radio: true, wall: w,
+          toggle: function () { return get('wp') === w.id; }, act: function () { set('wp', w.id); set('wpDaily', false); } };
       }) };
+  }
+  function quickPage() {
+    var Q = P.Quick, o = Q.order();
+    return { title: 'Quick panel', prev: 'quick', note: 'In the panel: hold OK on one to move it or hide it.',
+      rows: [{ section: 'Shown' }].concat(o.tiles.concat(o.rounds).map(function (k) {
+        var it = Q.ALL[k];
+        return { label: it.label, toggle: function () { return (get('quickHidden') || []).indexOf(k) < 0; },
+          act: function () { var h = (get('quickHidden') || []).slice(), i = h.indexOf(k); if (i < 0) h.push(k); else h.splice(i, 1); set('quickHidden', h); } };
+      }), [{ section: 'Order' }, { label: 'Back to the first order', value: function () { return ''; }, act: function () { set('quickOrder', null); P.UI.toast(P.t('Done')); } }]) };
   }
   S.switchLanguage = function () {
     set('lang', get('lang') === 'ar' ? 'en' : 'ar');
@@ -57,17 +65,16 @@
       ] },
 
       home: { title: 'Home screen', prev: 'home', rows: [
-        { section: 'Wallpaper' },
-        { label: 'Light mode', value: function () { return P.Walls.name(P.Walls.byId(get('wpLight'))); }, open: 'wpLight', prev: 'wall:light' },
-        { label: 'Dark mode', value: function () { return P.Walls.name(P.Walls.byId(get('wpDark'))); }, open: 'wpDark', prev: 'wall:dark' },
+        { label: 'Wallpaper', value: function () { return wallSummary(); }, open: 'wp', prev: 'wall' },
         { label: 'A different mountain each day', toggle: function () { return get('wpDaily'); }, act: function () { set('wpDaily', !get('wpDaily')); },
-          note: 'Light and dark mode each go through their own photos, a new one every day' },
+          note: 'A new photo every day, from the ones that suit the theme' },
+        { label: 'Quick panel', value: function () { var n = (get('quickHidden') || []).length; return n ? P.t('{n} hidden', { n: n }) : 'All shown'; }, open: 'quickp', prev: 'quick' },
         { section: 'Rows' },
         { label: 'Matches row on home', toggle: function () { return get('matchesRow'); }, act: function () { set('matchesRow', !get('matchesRow')); } }
       ] },
 
-      wpLight: wallPage('light'),
-      wpDark: wallPage('dark'),
+      wp: wallPage(),
+      quickp: quickPage(),
 
       sleep: { title: 'Sleep screen', prev: 'sleep', rows: [
         { label: 'Start after', value: sleepText, act: cycle('sleepMin', SLEEP) },
@@ -104,7 +111,7 @@
 
       about: { title: 'About', prev: 'about', rows: [
         { label: 'Plume for Samsung', value: function () { return P.t('Version {v}', { v: VERSION }); }, act: function () {} },
-        { label: 'Wallpapers', value: function () { return 'Unsplash · Pexels'; }, act: function () {}, note: 'Free photos under the Unsplash and Pexels licences. The Rockies are inside Plume and work without internet' }
+        { label: 'Wallpapers', value: function () { return 'Unsplash · Pexels'; }, act: function () {}, note: 'Free photos under the Unsplash and Pexels licences, packed into Plume when you install it' }
       ] },
 
       row: { title: 'Apps in row', prev: 'apps', rows: P.Apps.all().map(function (it) {
@@ -176,35 +183,78 @@
     };
   }
 
+  /* Drawing is kept light for the TV: a page is built once when it opens; arrows only move the focus; OK updates
+     the values in place; the preview changes once the focus rests; the blurred backdrop is a tiny picture drawn once. */
+  var PG = null;
+  function rowHTML(r, n) {
+    var val = r.toggle ? '<span class="sw' + (r.radio ? ' radio' : '') + (r.toggle() ? ' on' : '') + '"><i></i></span>' : '<span class="val">' + P.esc(P.t(r.value ? r.value() : '')) + (r.open ? (P.rtl ? ' ‹' : ' ›') : '') + '</span>';
+    return '<div class="s-row" data-r="' + n + '"><span class="lab">' + P.esc(P.t(r.label)) + (r.sub ? '<small>' + P.esc(P.t(r.sub)) + '</small>' : '') + '</span>' + val + '</div>';
+  }
   S.render = function () {
-    var pg = pages()[S.page];
-    var rows = pg.rows;
+    PG = pages();
+    var pg = PG[S.page];
     var html = '<div class="st-bg" id="sBg"></div><div class="st-prev" id="sPrev"></div><div class="st-main">' +
       '<div class="s-head">' + (S.page !== 'main' ? P.icon('back') : '') + '<h2>' + P.esc(P.t(pg.title)) + '</h2></div>' +
       (pg.note ? '<p class="s-note">' + P.esc(P.t(pg.note)) + '</p>' : '') + '<div class="s-list" id="sList">';
     var n = 0;
-    rows.forEach(function (r) {
+    pg.rows.forEach(function (r) {
       if (r.section) { html += '<div class="s-sec">' + P.esc(P.t(r.section)) + '</div>'; return; }
-      var val = r.toggle ? '<span class="sw' + (r.radio ? ' radio' : '') + (r.toggle() ? ' on' : '') + '"><i></i></span>' : '<span class="val">' + P.esc(P.t(r.value ? r.value() : '')) + (r.open ? (P.rtl ? ' ‹' : ' ›') : '') + '</span>';
-      html += '<div class="s-row" data-r="' + (n++) + '"><span class="lab">' + P.esc(P.t(r.label)) + (r.sub ? '<small>' + P.esc(P.t(r.sub)) + '</small>' : '') + '</span>' + val + '</div>';
+      html += rowHTML(r, n++);
     });
     html += '</div><div class="s-foot" id="sFoot"></div></div>';
     root().innerHTML = html;
-    lastPrev = '';
-    var w = P.Home.wall || P.Walls.current(P.Home.dark);
-    P.$('#sBg').style.backgroundImage = 'url("' + P.Walls.url(w, 640) + '"), url("' + P.Walls.url(P.Walls.fallback(w.mode)) + '")';
-    paint();
+    lastPrev = ''; lastFocus = -1;
+    backdrop();
+    paint(true);
   };
+  /* after OK: the values change where they are (a page whose rows changed is drawn again) */
+  S.refresh = function () {
+    var before = PG && PG[S.page] ? PG[S.page].rows.length : -1;
+    PG = pages();
+    var pg = PG[S.page];
+    if (!pg || pg.rows.length !== before) { S.render(); return; }
+    var els = P.$$('.s-row', root());
+    actionable().forEach(function (r, i) {
+      var e = els[i]; if (!e) return;
+      if (r.toggle) { var sw = P.$('.sw', e); if (sw) sw.classList.toggle('on', !!r.toggle()); }
+      else { var v = P.$('.val', e); if (v) v.textContent = P.t(r.value ? r.value() : '') + (r.open ? (P.rtl ? ' ‹' : ' ›') : ''); }
+    });
+    var note = P.$('.s-note', root());
+    if (note && pg.note) note.textContent = P.t(pg.note);
+    lastPrev = ''; paint(true);
+  };
+  /* the backdrop: the wallpaper drawn into a tiny picture and stretched, which blurs it for free (no live blur to redraw) */
+  var bgCache = {};
+  function backdrop() {
+    var bg = P.$('#sBg'); if (!bg) return;
+    var cur = P.Home.wallNow || P.Walls.current(P.Home.dark), small = P.Walls.url(cur.w, true, P.Home.dark);
+    bg.classList.toggle('dim', !!cur.dim);
+    if (bgCache[small]) { bg.style.backgroundImage = 'url("' + bgCache[small] + '")'; return; }
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var c = document.createElement('canvas'); c.width = 40; c.height = 23;
+        c.getContext('2d').drawImage(img, 0, 0, 40, 23);
+        bgCache[small] = c.toDataURL('image/png');
+        var b2 = P.$('#sBg'); if (b2) b2.style.backgroundImage = 'url("' + bgCache[small] + '")';
+      } catch (e) { /* a photo from the internet can't be read back: the plain backdrop stays */ }
+    };
+    img.src = small;
+  }
   function chosenIndex() {   // a list of choices opens on the chosen one
     var i = actionable().map(function (r) { return !!(r.radio && r.toggle()); }).indexOf(true);
     return i < 0 ? 0 : i;
   }
-  function actionable() { return pages()[S.page].rows.filter(function (r) { return !r.section; }); }
-  function paint() {
+  function actionable() { if (!PG || !PG[S.page]) PG = pages(); return PG[S.page].rows.filter(function (r) { return !r.section; }); }
+  var lastFocus = -1, prevT = null;
+  function paint(now) {
     var list = actionable();
     if (S.at >= list.length) S.at = list.length - 1;
-    P.$$('.s-row', root()).forEach(function (e, i) { e.classList.toggle('focus', i === S.at); });
-    var el = P.$('.s-row.focus', root()), box = P.$('#sList');
+    var els = P.$$('.s-row', root());
+    if (lastFocus >= 0 && els[lastFocus]) els[lastFocus].classList.remove('focus');
+    var el = els[S.at]; if (el) el.classList.add('focus');
+    lastFocus = S.at;
+    var box = P.$('#sList');
     if (el && box) {
       var top = el.offsetTop - box.offsetTop;
       if (top - box.scrollTop > box.clientHeight - el.offsetHeight - 30) box.scrollTop = top - box.clientHeight + el.offsetHeight + 30;
@@ -212,25 +262,37 @@
     }
     var r = list[S.at];
     P.$('#sFoot').textContent = r && r.note ? P.t(r.note) : '';
-    var h = previewHTML(r && r.prev || pages()[S.page].prev || 'home', r);
-    if (h !== lastPrev) { lastPrev = h; P.$('#sPrev').innerHTML = h; }
+    clearTimeout(prevT);
+    var show = function () {
+      if (!S.isOpen() || !P.$('#sPrev')) return;
+      var h = previewHTML(r && r.prev || PG[S.page].prev || 'home', r);
+      if (h !== lastPrev) { lastPrev = h; P.$('#sPrev').innerHTML = h; }
+    };
+    if (now) show(); else prevT = setTimeout(show, 140);   // while you move through the list, the preview waits
   }
 
   /* ---------- the live preview on the left ---------- */
   var lastPrev = '';
   function cap(t, sub) { return '<div class="pv-cap">' + P.esc(P.t(t)) + (sub ? '<small>' + P.esc(sub) + '</small>' : '') + '</div>'; }
-  function miniHome(w, dark, hi) {
+  function miniHome(sh, dark, hi) {      // sh: what P.Walls.show() gives: { w, url, dim }
     var d = new Date(), apps = P.Apps.row().slice(0, 8);
-    return '<div class="pv-home ' + (dark ? 'dark' : 'light') + (hi ? ' hi-' + hi : '') + '"><img src="' + P.esc(P.Walls.url(w, 960)) + '" alt="" onerror="this.src=\'' + P.Walls.url(P.Walls.fallback(w.mode)) + '\'">' +
+    return '<div class="pv-home ' + (dark ? 'dark' : 'light') + (sh.dim ? ' dim' : '') + (hi ? ' hi-' + hi : '') + '"><img src="' + P.esc(P.Walls.url(sh.w, true, dark)) + '" alt="" onerror="this.src=\'img/rockies-' + (dark ? 'dusk' : 'day') + '.jpg\'">' +
       '<div class="pv-clock">' + P.esc(P.clockText(d)) + '</div><div class="pv-date">' + P.esc(P.dateText(d)) + '</div>' +
       '<div class="pv-apps">' + apps.map(function (it, i) { return '<i class="' + (i === 0 ? 'f' : '') + '"><span>' + P.esc(P.Apps.label(it)) + '</span></i>'; }).join('') + '</div>' +
       (get('matchesRow') ? '<div class="pv-matches"><b></b><b></b><b></b><b></b><b></b></div>' : '') +
       '<div class="pv-cw"><b></b><b></b><b></b><b></b></div></div>';
   }
-  function wallThumb(mode) {
-    var w = get('wpDaily') ? P.Walls.current(mode === 'dark') : P.Walls.byId(get(mode === 'dark' ? 'wpDark' : 'wpLight')) || P.Walls.fallback(mode);
-    var on = (mode === 'dark') === !!P.Home.dark;
-    return '<div class="pv-th' + (on ? ' on' : '') + '"><img src="' + P.esc(P.Walls.url(w, 480)) + '" alt=""><span>' + P.esc(P.t(mode === 'dark' ? 'Dark mode' : 'Light mode')) + ' · ' + P.esc(P.Walls.name(w)) + '</span></div>';
+  function nowHome() { return miniHome(P.Walls.current(P.Home.dark), P.Home.dark); }
+  /* one photo as each theme shows it */
+  function wallThumb(w, dark) {
+    var shown = !dark && w.night ? P.Walls.rockies : w, sh = P.Walls.show(shown, dark, true), on = dark === !!P.Home.dark;
+    return '<div class="pv-th' + (on ? ' on' : '') + (sh.dim ? ' dim' : '') + '"><div class="pv-ti"><img src="' + P.esc(sh.url) + '" alt=""></div><span>' + P.esc(P.t(dark ? 'Dark mode' : 'Light mode')) +
+      (shown !== w ? ' · ' + P.esc(P.Walls.name(shown)) : '') + '</span></div>';
+  }
+  function quickMini() {
+    var Q = P.Quick, o = Q.order(), hid = get('quickHidden') || [];
+    var cell = function (k) { var it = Q.ALL[k]; return '<i class="' + (it.round ? 'r' : 't') + (hid.indexOf(k) >= 0 ? ' off' : '') + '">' + P.icon(it.icon) + (it.round ? '' : '<span>' + P.esc(P.t(it.label)) + '</span>') + '</i>'; };
+    return '<div class="pq-t">' + o.tiles.map(cell).join('') + '</div><div class="pq-r">' + o.rounds.map(cell).join('') + '</div>';
   }
   function crestFor(name) {
     var F = P.Football, t = null;
@@ -241,14 +303,15 @@
   }
   function previewHTML(kind, r) {
     var dark = P.Home.dark, d = new Date();
-    if (kind.indexOf('wall:') === 0) {
-      var mode = kind.slice(5), w = r && r.wall;
-      if (!w) w = get('wpDaily') ? P.Walls.current(mode === 'dark') : P.Walls.byId(get(mode === 'dark' ? 'wpDark' : 'wpLight')) || P.Walls.fallback(mode);
-      return miniHome(w, mode === 'dark') + cap(P.Walls.name(w), P.t(P.Walls.credit(w)));
+    if (kind === 'wall') {
+      var w = r && r.wall || (get('wpDaily') ? P.Walls.chosen(dark) : P.Walls.byId(get('wp')) || P.Walls.rockies);
+      return '<div class="pv-ths big">' + wallThumb(w, false) + wallThumb(w, true) + '</div>' +
+        cap(P.Walls.name(w), P.t(P.Walls.credit(w)) + (w.night ? ' · ' + P.t('Dark mode only') : '') + (P.Walls.local(w) ? '' : ' · ' + P.t('from the internet')));
     }
-    if (kind === 'home') return miniHome(P.Walls.current(dark), dark) + '<div class="pv-ths">' + wallThumb('light') + wallThumb('dark') + '</div>' + cap('Your home screen, as it is now');
+    if (kind === 'quick') return '<div class="pv-quick">' + quickMini() + '</div>' + cap('Quick panel', P.t('The first icon at the top right'));
+    if (kind === 'home') { var c = P.Walls.chosen(dark); return nowHome() + '<div class="pv-ths">' + wallThumb(c, false) + wallThumb(c, true) + '</div>' + cap('Your home screen, as it is now'); }
     if (kind === 'apps') return miniHome(P.Walls.current(dark), dark, 'apps') + cap('Apps in row', P.count(P.Apps.row().length, 'app', 'apps'));
-    if (kind === 'look') return miniHome(P.Walls.current(dark), dark) + cap(P.t('Theme') + ': ' + P.t(THEME[get('theme')]), P.t(get('logos') === 'mono' ? 'Mono' : 'Colour') + ' · ' + P.t(NAMES[get('names')]));
+    if (kind === 'look') return nowHome() + cap(P.t('Theme') + ': ' + P.t(THEME[get('theme')]), P.t(get('logos') === 'mono' ? 'Mono' : 'Colour') + ' · ' + P.t(NAMES[get('names')]));
     if (kind === 'sleep') {
       return '<div class="pv-sleep"><img src="img/rockies-dusk.jpg" alt=""><div class="pv-zclock">' + P.esc(P.clockText(d)) + '</div><div class="pv-zdate">' + P.esc(P.dateText(d)) + '</div></div>' +
         cap(get('sleepMin') ? P.t('Starts {t} with nothing pressed', { t: sleepText() }) : 'Never starts by itself', P.t('Any button brings you back'));
@@ -288,14 +351,14 @@
       if (!r) return;
       if (k === 'ok' || k === 'right' || k === 'left') {
         if (r.open) { if (k === 'left') return; S.stack.push({ page: S.page, at: S.at }); S.page = r.open; S.at = chosenIndex(); S.render(); if (r.onOpen) r.onOpen(); return; }
-        if (r.act) { r.act(k === 'left' ? -1 : 1); S.render(); }
+        if (r.act) { r.act(k === 'left' ? -1 : 1); if (S.isOpen()) S.refresh(); }
       }
     },
     resume: function () { S.render(); }
   };
 
   S.open = function (page) {
-    S.page = 'main'; S.at = 0; S.stack = [];
+    S.page = 'main'; S.at = 0; S.stack = []; PG = null;
     if (page && pages()[page]) { S.at = actionable().map(function (r) { return r.open; }).indexOf(page); S.stack.push({ page: 'main', at: Math.max(0, S.at) }); S.page = page; S.at = chosenIndex(); }
     root().hidden = false;
     requestAnimationFrame(function () { root().classList.add('on'); });

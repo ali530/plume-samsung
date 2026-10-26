@@ -157,6 +157,18 @@ P.AR = {
   'Green slopes at sunrise': 'منحدرات خضراء عند الشروق', 'Clear summit': 'قمة صافية', 'Snowy summit': 'قمة مثلجة', 'Starry peak': 'قمة تحت النجوم',
   'Stars over the snow': 'نجوم فوق الثلج', 'Night snow': 'ثلج الليل', 'Summit under the stars': 'القمة تحت النجوم', 'Full moon': 'بدر', 'Blue hour': 'الساعة الزرقاء',
   'Alpenglow from above': 'وهج الغروب من الأعلى', 'Layered sunset': 'غروب متدرّج', 'First light': 'أول الضوء', 'Mountain at night': 'جبل في الليل',
+  // 2.15
+  'Checking…': 'جارٍ التحقق…', 'Wi-Fi': 'واي فاي', 'Not connected': 'غير متصل', 'Connected': 'متصل', 'Signal': 'الإشارة', 'Cable (Ethernet)': 'سلك (إيثرنت)',
+  'TV address': 'عنوان التلفاز', 'Router': 'الراوتر', "To change the network: Samsung's Settings → Connection": 'لتغيير الشبكة: إعدادات سامسونج ← الاتصال',
+  'Use ◀ ▶ ▲ ▼ to move · OK when done': 'استخدم ◀ ▶ ▲ ▼ للتحريك · OK عند الانتهاء', 'Hide': 'إخفاء',
+  'Hidden. Settings → Home screen → Quick panel brings it back': 'أُخفي. الإعدادات ← الشاشة الرئيسية ← اللوحة السريعة تعيده',
+  'Dark mode only': 'للوضع الداكن فقط', 'Done': 'تم', '{n} hidden': '{n} مخفية', 'All shown': 'كلها ظاهرة', 'from the internet': 'من الإنترنت',
+  'The first icon at the top right': 'أول أيقونة في أعلى الشاشة', 'Quick panel': 'اللوحة السريعة', 'In the panel: hold OK on one to move it or hide it.': 'في اللوحة: اضغط مطولًا على OK لتحريك عنصر أو إخفائه.',
+  'Shown': 'الظاهرة', 'Order': 'الترتيب', 'Back to the first order': 'العودة إلى الترتيب الأصلي', 'Rockies': 'جبال روكي',
+  'A new photo every day, from the ones that suit the theme': 'صورة جديدة كل يوم، مما يناسب السمة',
+  'One photo for both themes. Dark mode dims a day photo': 'صورة واحدة للسمتين. الوضع الداكن يعتّم صور النهار',
+  'Free photos under the Unsplash and Pexels licences, packed into Plume when you install it': 'صور مجانية بترخيص Unsplash وPexels، تُضمَّن في Plume عند تثبيته',
+  'Kept on the TV from last time': 'محفوظة على التلفاز من المرة السابقة', 'Read from the file · all lines here': 'مقروءة من الملف · كل الأسطر جاهزة',
   // cities
   'Riyadh': 'الرياض', 'Jeddah': 'جدة', 'Mecca': 'مكة المكرمة', 'Medina': 'المدينة المنورة', 'Dammam': 'الدمام', 'Khobar': 'الخبر', 'Dhahran': 'الظهران',
   'Taif': 'الطائف', 'Abha': 'أبها', 'Tabuk': 'تبوك', 'Buraidah': 'بريدة', 'Hail': 'حائل', 'Jazan': 'جازان', 'Najran': 'نجران', 'AlUla': 'العُلا', 'Al Ahsa': 'الأحساء'

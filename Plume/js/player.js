@@ -118,7 +118,7 @@
   }
   function loadSubs(sub) {
     st.cues = null; st.cueAt = 0; st.subOff = null; setSubText(''); stopEmbedded();
-    clearInterval(st.fileT); st.fileSubs = null; stopStyled(); st.styleNote = '';
+    clearInterval(st.fileT); st.fileSubs = null; stopStyled(); st.styleNote = ''; st.assPending = null;
     st.subHow = sub ? 'Loading…' : '';
     var want = st.subGen = (st.subGen || 0) + 1;
     if (!sub || IMAGE_SUBS.test(sub.codec || '')) { st.subHow = sub ? 'Drawn into the picture by the server' : ''; return; }
@@ -191,7 +191,8 @@
     loadLib().then(function () {
       if (st !== mine || st.subGen !== want) return;
       var urls = (fonts || []).map(function (f) { return URL.createObjectURL(new Blob([f.data])); });
-      var A = { oct: null, ready: false, feed: !!feed, queue: [], styles: null, urls: urls, gen: want };
+      var A = { oct: null, ready: false, feed: !!feed, queue: feed ? (st.assPending || []) : [], styles: null, urls: urls, gen: want };
+      st.assPending = null;
       st.ass = A;
       var fail = function (why) {
         if (st !== mine || st.ass !== A) return;
@@ -219,7 +220,10 @@
     }, function (e) { if (st === mine) st.styleNote = e.message; });
   }
   function feedStyled(lines) {
-    var A = st && st.ass; if (!A || !A.feed || !lines || !lines.length) return;
+    if (!st || !lines || !lines.length) return;
+    var A = st.ass;
+    if (!A) { if (styled()) st.assPending = (st.assPending || []).concat(lines); return; }   // the engine is still starting
+    if (!A.feed) return;
     if (!A.styles) { A.queue = A.queue.concat(lines); return; }
     lines.forEach(function (l) {
       if (!l.raw) return;
@@ -280,10 +284,18 @@
     if (!P.SubFile || !isMkv) { fallback(sub, P.SubFile ? 'reading from the file: only MKV files hold these' : 'reading from the file: not available'); return; }
     st.subHow = 'Reading them from the file…';
     var inFile = pl.subs.filter(function (x) { return !x.key; });
+    var cacheKey = (s.uri || '') + pl.part.key + '|' + sub.index + '|' + (pl.part.size || '');
+    var cache = P.SubCache ? P.SubCache.get(cacheKey) : Promise.resolve(null);
+    cache.then(function (saved) {
+      if (!st || st.subGen !== want) return;
+      if (saved && saved.lines && saved.lines.length) { fromSaved(sub, want, saved); return; }
+      readFile();
+    });
+    function readFile() {
     P.SubFile.open(s.uri + pl.part.key + (pl.part.key.indexOf('?') < 0 ? '?' : '&') + 'X-Plex-Token=' + tok(),
       { index: sub.index, nth: inFile.indexOf(sub), lang: sub.languageCode || '' }).then(function (R) {
       if (!st || st.subGen !== want) return;
-      var mine = st.fileSubs = { R: R, busy: false, first: true, have: {} };
+      var mine = st.fileSubs = { R: R, busy: false, first: true, have: {}, all: [], saved: false };
       if (styled() && R.header) R.fonts(25 * 1048576).catch(function (e) { st.styleNote = 'fonts: ' + e.message; return []; }).then(function (fonts) {
         if (st && st.fileSubs === mine) startStyled(R.header, fonts, want, true);
       });
@@ -297,16 +309,25 @@
         var now = Math.max(0, st.t - (st.subOff || 0)); mine.at = st.t;
         R.fill(now, now + ahead, 0, now).then(function (lines) {
           if (lines.length || R.mode !== 'index' || !R.left) return lines;
-          return R.fill(0, 1e15, 8, now);                      // the rest of the episode, quietly
+          return R.fill(0, 1e15, 30, now);                     // the rest of the episode, nearest first
         }).then(function (lines) {
           mine.busy = false;
           if (!st || st.fileSubs !== mine) return;
           if (mine.again) setTimeout(pull, 0);
           var add = lines.filter(function (l) { var k = l.a + '|' + (l.raw ? l.raw.Text : l.t); if (mine.have[k]) return false; mine.have[k] = true; return true; });
+          mine.all = mine.all.concat(add);
           var plain = add.filter(function (l) { return !l.skip; });
           if (plain.length) { st.cues = (st.cues || []).concat(plain).sort(function (x, y) { return x.a - y.a; }); subsAt(st.t); }
           feedStyled(add);
           if (mine.first) { mine.first = false; st.subHow = R.mode === 'index' ? 'Read from the file' : 'Read from the file, piece by piece'; }
+          if (R.mode === 'index') {
+            // the rest of the episode straight after, a batch at a time (about half a minute in all), so skips never wait
+            if (R.left) { if (!mine.again) setTimeout(pull, 40); }
+            else if (!mine.saved) {
+              mine.saved = true; st.subHow = 'Read from the file · all lines here';
+              if (P.SubCache) P.SubCache.put(cacheKey, { lines: mine.all, header: R.header || '', codec: R.codec || '' });
+            }
+          }
         }, function (e) {
           mine.busy = false;
           if (!st || st.fileSubs !== mine) return;
@@ -322,6 +343,19 @@
       if (!st || st.subGen !== want) return;
       fallback(sub, 'reading from the file: ' + e.message);
     });
+    }
+  }
+  /* an episode opened again: its lines were kept on the TV (the last 10 episodes), so they show at once */
+  function fromSaved(sub, want, saved) {
+    st.cues = saved.lines.filter(function (l) { return !l.skip; }).sort(function (x, y) { return x.a - y.a; });
+    st.subHow = 'Kept on the TV from last time'; subsAt(st.t);
+    if (styled() && saved.header) {
+      fontsFromFile().then(function (fonts) {
+        if (!st || st.subGen !== want) return;
+        st.assPending = saved.lines.slice();
+        startStyled(saved.header, fonts, want, true);
+      });
+    }
   }
   /* The subtitle is inside the video, the server won't hand it over as a file and the TV can't read it (ASS, for example).
      1) ask the server to repackage the video (picture and sound copied, no quality loss) and send the subtitles as text;
@@ -493,6 +527,7 @@
   }
 
   function show(on) {
+    if (on && !st.ui) { st.zone = 'btns'; st.sel = BTNS.indexOf('pp'); st.seek = null; }   // the bar comes back on Play/Pause, in the middle
     st.ui = on;
     root.classList.toggle('ui-on', on);
     clearTimeout(hideT);

@@ -186,6 +186,9 @@ async def main():
         await pg.wait_for_timeout(900)
         seeks = [a for a in await ev('window.__av') if a[0] == 'seek'][n0:]
         check('three +10 presses make one jump of 30 s', len(seeks) == 1, seeks)
+        await ev("(function(){var s=P.Player.debug(); if(!s.ui) P.Player.layer.key('down'); s.sel = 1; P.Player.layer.key('back');})()")   # Info focused, then the bar hides
+        await key('ArrowDown', 200)
+        check('the bar comes back focused on Play/Pause', await ev("(function(){var s=P.Player.debug(); return s.zone=='btns' && s.sel==3 && document.querySelector('#plUi [data-b=pp]').classList.contains('focus');})()"))
         await key('ArrowDown')
         for _ in range(3): await key('ArrowLeft', 120)
         await key('Enter', 400)
@@ -203,8 +206,8 @@ async def main():
         check('subtitle choice saved to Plex', any(h.startswith('PUT /library/parts/9001') and 'subtitleStreamID=22' in h for h in hits))
         await key('Escape', 300)
         # info
-        await key('ArrowLeft'); await key('ArrowLeft'); await key('ArrowLeft'); await key('ArrowRight'); await key('Enter', 300)
-        check('info opens', await ev("document.getElementById('plInfo').classList.contains('on')"))
+        await key('ArrowDown'); await key('ArrowLeft'); await key('ArrowLeft'); await key('Enter', 300)   # the bar opens on Play/Pause; Info is two to the left
+        check('info opens', await ev("document.getElementById('plInfo').classList.contains('on')"), await ev("(function(){var s=P.Player.debug(); return [s.ui, s.zone, s.sel, s.panel, s.info]})()"))
         await shot('p4-info')
         await key('Escape', 300)
         # credits -> up next
@@ -337,7 +340,7 @@ async def main():
         subsmode['plexsub'] = 'refuse'; subsmode['ranges'] = 0
         await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(1200)
         st4 = await ev("(function(){var s=P.Player.debug();return {how:s.subHow, n:(s.cues||[]).length, mode:s.fileSubs&&s.fileSubs.R.mode, used:s.fileSubs&&s.fileSubs.R.used(), log:s.subLog}})()")
-        check('...else read from the file: the right track, in small parts', st4['how'] == 'Read from the file' and st4['mode'] == 'index' and st4['n'] >= 8 and subsmode['ranges'] > 3 and not subsmode.get('whole'), st4)
+        check('...else read from the file: the right track, in small parts', st4['how'] in ('Read from the file', 'Read from the file · all lines here') and st4['mode'] == 'index' and st4['n'] >= 8 and subsmode['ranges'] > 3 and not subsmode.get('whole'), st4)
         shown = set()
         for _ in range(8):
             shown.add(await ev("document.getElementById('plSub').textContent")); shown.add('TOP:' + await ev("document.getElementById('plSubTop').textContent"))
@@ -347,6 +350,15 @@ async def main():
         await pg.wait_for_timeout(400)
         fills = await ev("window.__fills")
         check('a skip reads where you landed at once', any(abs(x - 15000) < 3000 for x in fills), fills)
+        for _ in range(40):
+            if await ev("(P.Player.debug().subHow||'').indexOf('all lines')>=0"): break
+            await pg.wait_for_timeout(250)
+        check('the whole episode is read straight after (all lines here)', 'all lines' in await ev("P.Player.debug().subHow"))
+        await key('Escape', 200); await key('Escape', 900)
+        r0 = subsmode['ranges']
+        await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(1200)
+        st4b = await ev("(function(){var s=P.Player.debug();return {how:s.subHow, n:(s.cues||[]).length}})()")
+        check('opened again: the lines were kept on the TV, shown at once', st4b['how'] == 'Kept on the TV from last time' and st4b['n'] == st4['n'], st4b)
         check('top lines are centred like the others', await ev("getComputedStyle(document.getElementById('plSubTop')).display") != 'flex')
         await shot('p9-subs-from-file')
         await key('Escape', 200); await key('Escape', 900)
@@ -374,7 +386,7 @@ async def main():
         await ev("window.__avjump(4000)"); await pg.wait_for_timeout(1000)
         st6 = await ev("(function(){var s=P.Player.debug();return {how:s.subHow, ready:!!(s.ass&&s.ass.ready), styles:s.ass&&s.ass.styles}})()")
         px = await ev(PIX)
-        check('styled from the file: styles known, lines drawn', st6['how'] == 'Read from the file' and st6['ready'] and 'Sign' in (st6['styles'] or {}) and px > 200, [st6, px])
+        check('styled from the file (lines kept on the TV the second time): styles known, lines drawn', st6['how'] in ('Read from the file', 'Read from the file · all lines here', 'Kept on the TV from last time') and st6['ready'] and 'Sign' in (st6['styles'] or {}) and px > 200, [st6, px])
         await shot('p11-subs-styled-from-file')
         await key('Escape', 200); await key('Escape', 900)
         # Settings → Subtitle style: Plain lines → no engine, Plume's lines

@@ -4,10 +4,12 @@
   var DEFAULTS = {
     lang: 'en',                    // en | ar (Arabic: right to left)
     theme: 'auto',                 // auto | light | dark   (auto: dark from sunset to sunrise)
-    wpLight: 'rockies-day',
-    wpDark: 'rockies-dusk',
-    wpDaily: false,                // a different mountain each day (light and dark each go through their own photos)
+    wp: null,                      // the wallpaper, for both themes (dimmed in dark mode); null: from older versions' light choice
+    wpLight: 'rockies-day',        // older versions: kept only to carry the choice over
+    wpDaily: false,                // a different mountain each day
     clock24: false,                // 24-hour clock (20:33) instead of 12-hour (8:33)
+    quickOrder: null,              // the quick panel's order: {tiles: [...], rounds: [...]} (null: as it comes)
+    quickHidden: [],               // quick panel items you hid (hold OK on one → Hide); Settings → Home screen brings them back
     logos: 'mono',                 // mono | colour
     names: 'focus',                // focus | always | never
     row: ['hdmi:ps5', 'hdmi:bein', 'app:plex', 'matches', 'app:youtube', 'app:netflix', 'app:shahid', 'app:appletv'],

@@ -300,12 +300,12 @@
                 .sort(function (x, y) { var dx = x.time * ms - at, dy = y.time * ms - at; return (dx < -3000 ? 1e12 - dx : dx) - (dy < -3000 ? 1e12 - dy : dy); });
               if (limit) list = list.slice(0, limit);
               list.forEach(function (c) { done[c.cluster + ':' + c.rel] = true; });
-              // a few at a time, so they arrive in order and never crowd the network
+              // six at a time, so they arrive in order and never crowd the network
               R.left = mine.filter(function (c) { return !done[c.cluster + ':' + c.rel]; }).length;
               var out = [], i = 0;
               var next = function () {
                 if (i >= list.length) return Promise.resolve(out);
-                var batch = list.slice(i, i + 4); i += 4;
+                var batch = list.slice(i, i + 6); i += 6;
                 return Promise.all(batch.map(function (c) {
                   return head(c.cluster).then(function (h) {
                     var at = h.data + c.rel;
@@ -356,5 +356,43 @@
       });
     },
     _inflate: inflate, _topStyles: topStyles   // for the tests
+  };
+
+  /* The last 10 episodes' subtitle lines, kept on the TV (IndexedDB), so an episode you open again shows them at once. */
+  var DBN = 'plume-subs', KEEP = 10, dbP = null;
+  function db() {
+    if (dbP) return dbP;
+    return (dbP = new Promise(function (ok, no) {
+      if (!window.indexedDB) { no(new Error('no storage')); return; }
+      var r = indexedDB.open(DBN, 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('subs', { keyPath: 'key' }); };
+      r.onsuccess = function () { ok(r.result); };
+      r.onerror = function () { no(r.error || new Error('storage')); };
+    }).catch(function (e) { dbP = null; throw e; }));
+  }
+  function store(mode) { return db().then(function (d) { return d.transaction('subs', mode).objectStore('subs'); }); }
+  function req(r) { return new Promise(function (ok, no) { r.onsuccess = function () { ok(r.result); }; r.onerror = function () { no(r.error); }; }); }
+  P.SubCache = {
+    get: function (key) {
+      return store('readonly').then(function (st) { return req(st.get(key)); }).then(function (e) {
+        if (e) P.SubCache.touch(key);
+        return e || null;
+      }).catch(function () { return null; });
+    },
+    touch: function (key) {
+      store('readwrite').then(function (st) { var g = st.get(key); g.onsuccess = function () { var e = g.result; if (e) { e.at = Date.now(); st.put(e); } }; }).catch(function () {});
+    },
+    /* entry: { lines, header, codec } */
+    put: function (key, entry) {
+      entry.key = key; entry.at = Date.now();
+      return store('readwrite').then(function (st) { return req(st.put(entry)); }).then(function () {
+        return store('readwrite').then(function (st) { return req(st.getAll()); });
+      }).then(function (all) {
+        all.sort(function (a, b) { return b.at - a.at; });
+        if (all.length <= KEEP) return;
+        return store('readwrite').then(function (st) { all.slice(KEEP).forEach(function (e) { st.delete(e.key); }); });
+      }).catch(function () {});
+    },
+    clear: function () { return store('readwrite').then(function (st) { return req(st.clear()); }).catch(function () {}); }
   };
 })();

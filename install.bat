@@ -60,7 +60,9 @@ for /f "tokens=1 delims=:" %%i in ("%FOUND%") do set TVIP=%%i
 echo     TV at %TVIP%
 
 echo.
-echo [2/4] Building and signing with profile %PROFILE% ...
+echo [2/4] Wallpapers, then building and signing with profile %PROFILE% ...
+rem the wallpapers are downloaded once into Plume\img\walls (see walls.ps1); later runs skip the ones already there
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0walls.ps1"
 if exist "Plume\Plume.wgt" del /q "Plume\Plume.wgt"
 call "%TIZEN%" package -t wgt -s %PROFILE% -- "%~dp0Plume"
 if not exist "Plume\Plume.wgt" (

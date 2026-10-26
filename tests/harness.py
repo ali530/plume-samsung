@@ -119,7 +119,9 @@ window.__calls = [];
       show: function(ok){ rec('tvwindowShow'); ok && ok(); }, hide: function(ok){ rec('tvwindowHide'); ok && ok(); }
     }
   };
-  window.webapis = { appcommon: { AppCommonScreenSaverState: {SCREEN_SAVER_ON:1, SCREEN_SAVER_OFF:0}, setScreenSaver: function(s){ rec('screensaver', [s]); } } };
+  window.webapis = { appcommon: { AppCommonScreenSaverState: {SCREEN_SAVER_ON:1, SCREEN_SAVER_OFF:0}, setScreenSaver: function(s){ rec('screensaver', [s]); } },
+    network: { getActiveConnectionType: function(){ return 1; }, getIp: function(){ return '192.168.100.6'; }, getGateway: function(){ return '192.168.100.1'; },
+      getWiFiSsid: function(){ return 'Home-5G'; }, getWiFiSignalStrengthLevel: function(){ return 3; } } };
 })();
 """ % ORIGIN
 
@@ -606,22 +608,56 @@ async def main():
         await key('Enter'); await key('Escape'); await pg.wait_for_timeout(300)
         check('Back closes the quick panel', await ev_("P.UI.top().name") == 'home' and not await ev_("P.Quick.isOpen()"))
         await ev_("P.S.set('clock24', false); P.Home.tick()")
-        # wallpapers: "Plain" from older versions goes back to the Rockies; a photo that can't load falls back too
-        await ev_("P.S.set('wpLight','plain'); P.Walls.fix()")
-        check('old "Plain" wallpaper becomes the Rockies', await ev_("P.S.get('wpLight')") == 'rockies-day')
-        check('more than 8 mountains, light and dark', await ev_("P.Walls.list('light').length>=10 && P.Walls.list('dark').length>=10"))
-        await ev_("P.S.set('wpDark','night-mountain'); P.S.set('theme','dark')"); await pg.wait_for_timeout(4000)
+        # wallpapers: one choice for both themes; "Plain" and the old light choice carry over; a day photo is dimmed in dark mode
+        await ev_("P.S.reset('wp'); P.S.set('wpLight','plain'); P.Walls.fix()")
+        check('old "Plain" wallpaper becomes the Rockies', await ev_("P.S.get('wp')") == 'rockies-day')
+        check('more than 8 mountains; night ones only in dark mode', await ev_("P.Walls.all.length>=20 && P.Walls.pool(false).length>=10 && P.Walls.pool(false).every(w=>!w.night) && P.Walls.pool(true).length==P.Walls.all.length"))
+        await ev_("P.S.set('wp','lake-mirror'); P.S.set('theme','dark')"); await pg.wait_for_timeout(1500)
+        check('dark mode: the day photo is dimmed', await ev_("document.getElementById('wall').classList.contains('dim') && /1732130319312/.test(document.getElementById('wallImg').src)"))
+        await ev_("P.S.set('wp','rockies-day')"); await pg.wait_for_timeout(800)
+        check('dark mode: the Rockies use their dusk photo, not dimmed', await ev_("/rockies-dusk/.test(document.getElementById('wallImg').src) && !document.getElementById('wall').classList.contains('dim')"))
+        await ev_("P.S.set('wp','night-mountain')"); await pg.wait_for_timeout(4000)
         check('a photo that does not load falls back to the Rockies', await ev_("/rockies-dusk/.test(document.getElementById('wallImg').src) && !!P.Walls.failed['night-mountain']"))
-        await ev_("P.Settings.open('wpDark')"); await pg.wait_for_timeout(500)
-        check('wallpaper list opens on the chosen photo, preview on the left', await ev_("document.querySelector('#settings .s-row.focus .lab').childNodes[0].textContent") == await ev_("P.t('Mountain at night')")
-              and await ev_("!!document.querySelector('#sPrev .pv-home img')"))
-        await key('ArrowDown'); await pg.wait_for_timeout(300)
+        await ev_("P.S.set('theme','light'); P.Walls.failed={}"); await pg.wait_for_timeout(800)
+        check('light mode: a night photo shows the Rockies instead', await ev_("/rockies-day/.test(document.getElementById('wallImg').src)"))
+        await ev_("P.S.set('theme','dark'); P.Settings.open('wp')"); await pg.wait_for_timeout(500)
+        check('wallpaper list opens on the chosen photo, light and dark preview', await ev_("document.querySelector('#settings .s-row.focus .lab').childNodes[0].textContent") == await ev_("P.t('Mountain at night')")
+              and await ev_("document.querySelectorAll('#sPrev .pv-th').length==2"))
+        same = await ev_("(function(){window._row=document.querySelectorAll('#settings .s-row')[3]; return true})()")
+        await key('ArrowUp'); await key('ArrowUp'); await pg.wait_for_timeout(400)
+        check('Settings: arrows move the focus without drawing the list again', await ev_("document.querySelectorAll('#settings .s-row')[3]===window._row"))
         await shot('18-settings-wallpaper')
+        await key('Enter'); await pg.wait_for_timeout(300)
+        check('...and OK changes the value in place', await ev_("document.querySelectorAll('#settings .s-row')[3]===window._row && P.S.get('wp')!='night-mountain'"))
         await key('Escape'); await pg.wait_for_timeout(200)
         await shot('18b-settings-home')
         await key('Escape'); await pg.wait_for_timeout(200); await key('Escape'); await pg.wait_for_timeout(300)
-        await ev_("P.S.reset('wpDark'); P.S.reset('theme'); P.S.reset('matchesRow'); P.Walls.failed={}; P.Home.applyTheme()")
+        await ev_("P.S.reset('wp'); P.S.reset('theme'); P.S.reset('matchesRow'); P.Walls.failed={}; P.Home.applyTheme()")
         check('settings closed', await ev_("P.UI.top().name") == 'home')
+        # quick panel: hold OK → Move, then Hide; Settings brings it back
+        await ev_("P.Home.focus('icons','quick')"); await key('Enter'); await pg.wait_for_timeout(300)
+        await hold(); await pg.wait_for_timeout(300)
+        await key('Enter'); await pg.wait_for_timeout(200)         # Move
+        await key('ArrowRight'); await pg.wait_for_timeout(150); await key('Enter'); await pg.wait_for_timeout(200)
+        check('quick panel: Move swaps Theme and Clock', await ev_("P.Quick.order().tiles.slice(0,2).join()") == 'clock,theme')
+        await hold(); await pg.wait_for_timeout(300)
+        await key('ArrowDown'); await key('Enter'); await pg.wait_for_timeout(300)   # Hide
+        check('quick panel: Hide takes it away', await ev_("document.querySelectorAll('#quick .q-t').length==5 && P.S.get('quickHidden').indexOf('theme')>=0"))
+        await shot('17c-quick-panel-moved')
+        await key('Escape'); await pg.wait_for_timeout(300)
+        await ev_("P.Settings.open('quickp')"); await pg.wait_for_timeout(400)
+        await shot('17d-settings-quick-panel')
+        for _ in range(await ev_("P.Quick.order().tiles.indexOf('theme')")): await key('ArrowDown')
+        await key('Enter'); await pg.wait_for_timeout(200)
+        check('Settings → Quick panel brings it back', await ev_("P.S.get('quickHidden').length") == 0)
+        await key('Escape'); await pg.wait_for_timeout(150); await key('Escape'); await pg.wait_for_timeout(300)
+        await ev_("P.S.reset('quickOrder'); P.S.reset('quickHidden')")
+        # the Wi-Fi icon: focus shows the network
+        await ev_("P.Home.focus('icons','net')"); await pg.wait_for_timeout(400)
+        check('focus on the Wi-Fi icon shows the network card', await ev_("!document.getElementById('netCard').hidden && /Wi-Fi|Cable|Connected|Not connected|شبكة|واي/.test(document.getElementById('netCard').textContent)"))
+        await shot('20-network-card')
+        await ev_("P.Home.focus('icons','settings')"); await pg.wait_for_timeout(300)
+        check('...and it goes when the focus moves on', await ev_("document.getElementById('netCard').hidden"))
         for page, nm in [('football', '19-settings-football'), ('sleep', '19b-settings-sleep'), ('lang', '19c-settings-clock'), ('plex', '19d-settings-plex')]:
             await ev_("P.Settings.open('%s')" % page); await pg.wait_for_timeout(500); await shot(nm)
             await key('Escape'); await pg.wait_for_timeout(150); await key('Escape'); await pg.wait_for_timeout(300)

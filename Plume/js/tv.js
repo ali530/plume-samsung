@@ -134,5 +134,37 @@
 
   T.online = function () { return navigator.onLine !== false; };
 
+  /* the connection, for the card under the Wi-Fi icon: { type: 'wifi'|'wired'|'none', ssid, bars (0–4), ip, gateway }.
+     Samsung's network API first, then Tizen's; apps can read these but can't change the network. */
+  T.netInfo = function () {
+    var out = { type: T.online() ? '' : 'none', ssid: '', bars: -1, ip: '', gateway: '' };
+    var n = window.webapis && webapis.network;
+    if (n) {
+      try { var t = n.getActiveConnectionType(); out.type = t === 1 ? 'wifi' : t === 3 ? 'wired' : t === 0 ? 'none' : out.type; } catch (e) {}
+      try { out.ip = n.getIp() || ''; } catch (e) {}
+      try { out.gateway = n.getGateway() || ''; } catch (e) {}
+      if (out.type === 'wifi') {
+        try { out.ssid = n.getWiFiSsid() || ''; } catch (e) {}
+        try { var lv = n.getWiFiSignalStrengthLevel(); if (lv >= 0) out.bars = Math.max(0, Math.min(4, Math.round(lv > 4 ? lv / 25 : lv))); } catch (e) {}
+      }
+      if (out.type) return Promise.resolve(out);
+    }
+    if (!tz || !tz.systeminfo) return Promise.resolve(out);
+    return new Promise(function (ok) {
+      try {
+        tz.systeminfo.getPropertyValue('WIFI_NETWORK', function (w) {
+          if (w && w.status === 'ON' && w.ipAddress) {
+            out.type = 'wifi'; out.ssid = w.ssid || ''; out.ip = w.ipAddress || ''; out.bars = Math.round((w.signalStrength || 0) * 4);
+            ok(out); return;
+          }
+          tz.systeminfo.getPropertyValue('ETHERNET_NETWORK', function (e) {
+            if (e && e.ipAddress) { out.type = 'wired'; out.ip = e.ipAddress; out.gateway = e.gateway || ''; }
+            ok(out);
+          }, function () { ok(out); });
+        }, function () { ok(out); });
+      } catch (e) { ok(out); }
+    });
+  };
+
   P.TV = T;
 })();

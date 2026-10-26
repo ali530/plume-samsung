@@ -16,13 +16,15 @@
 
   /* the wallpaper of the current mode; a photo that doesn't load (no internet) falls back to the Rockies inside Plume */
   H.showWall = function () {
-    var W = P.Walls, w = W.current(H.dark), src = W.url(w), img = P.$('#wallImg');
-    H.wall = w;
-    if (img.getAttribute('src') === src) { img.style.opacity = 1; return; }
-    img.style.opacity = 0;
-    img.onload = function () { img.style.opacity = 1; };
-    img.onerror = function () { if (w.src === 'plume') return; W.failed[w.id] = true; H.showWall(); };
-    img.src = src;
+    var W = P.Walls, cur = W.current(H.dark), img = P.$('#wallImg'), wall = P.$('#wall');
+    H.wall = cur.w; H.wallNow = cur;
+    var done = function () { wall.classList.toggle('dim', cur.dim); img.style.opacity = 1; };
+    if (img.getAttribute('src') === cur.url) { done(); return; }
+    // the new photo loads beside the old one, then takes its place: no blank moment
+    var pre = new Image();
+    pre.onload = function () { if (H.wallNow !== cur) return; img.src = cur.url; done(); };
+    pre.onerror = function () { if (H.wallNow !== cur || cur.w.src === 'plume') return; W.failed[cur.w.id] = true; H.showWall(); };
+    pre.src = cur.url;
   };
 
   /* ---------- clock, date, weather ---------- */
@@ -194,6 +196,27 @@
       label.classList.add('on');
     } else label.classList.remove('on');
     P.$('#appRow').classList.toggle('editing', !!H.editing);
+    H.netCard(!!cur && H.row === 'icons' && H.key === 'net');
+  };
+  /* focus on the Wi-Fi icon: the network's name, signal and the TV's address */
+  var netOn = false;
+  H.netCard = function (on) {
+    var c = P.$('#netCard');
+    if (!on) { if (netOn) { netOn = false; c.classList.remove('on'); c.hidden = true; } return; }
+    if (netOn) return;
+    netOn = true; c.hidden = false;
+    c.innerHTML = '<div class="nc-h">' + P.esc(P.t('Network')) + '</div><div class="nc-r dim">' + P.esc(P.t('Checking…')) + '</div>';
+    requestAnimationFrame(function () { c.classList.add('on'); });
+    P.TV.netInfo().then(function (n) {
+      if (!netOn) return;
+      var row = function (k, v) { return v ? '<div class="nc-r"><span>' + P.esc(P.t(k)) + '</span><b>' + P.esc(v) + '</b></div>' : ''; };
+      var bars = n.bars >= 0 ? '<i class="nc-bars b' + n.bars + '"><s></s><s></s><s></s><s></s></i>' : '';
+      var head = n.type === 'wifi' ? P.t('Wi-Fi') : n.type === 'wired' ? P.t('Cable (Ethernet)') : n.type === 'none' ? P.t('Not connected') : P.t('Connected');
+      c.innerHTML = '<div class="nc-h">' + P.icon(n.type === 'none' ? 'wifiOff' : 'wifi') + ' ' + P.esc(head) + '</div>' +
+        row('Network', n.ssid) + (n.type === 'wifi' && n.bars >= 0 ? '<div class="nc-r"><span>' + P.esc(P.t('Signal')) + '</span>' + bars + '</div>' : '') +
+        row('TV address', P.ltr(n.ip)) + row('Router', P.ltr(n.gateway)) +
+        '<div class="nc-n">' + P.esc(P.t("To change the network: Samsung's Settings → Connection")) + '</div>';
+    });
   };
   /* rows slide with a GPU transform rather than scrolling, which the TV redraws far more cheaply */
   function scrollInto(el) {
@@ -247,7 +270,7 @@
     var cur = H.current(); if (!cur) return;
     var k = cur.dataset.key;
     if (H.row === 'matchesH' || H.row === 'cwH') { H.toggleFold(H.row.slice(0, -1)); return; }
-    if (H.row === 'icons') { if (k === 'settings') P.Settings.open(); else if (k === 'allapps') P.AllApps.open(); else if (k === 'quick') P.Quick.open(); return; }
+    if (H.row === 'icons') { if (k === 'settings') P.Settings.open(); else if (k === 'allapps') P.AllApps.open(); else if (k === 'quick') P.Quick.open(); else if (k === 'net') { H.netCard(false); H.netCard(true); } return; }
     if (H.row === 'strip') {
       if (hold || !stripMatch) { P.Centre.open(stripMatch && stripMatch.id); return; }
       // the strip is a shortcut: live → beIN at once, upcoming → reminder; the match centre has the full menu
@@ -327,7 +350,7 @@
     P.bus.on('logos', function () { clearTimeout(logosT); logosT = setTimeout(H.renderApps, 50); });
     P.bus.on('weather', function () { H.tick(); H.applyTheme(); });
     P.bus.on('setting', function (k) {
-      if (/^(theme|wpLight|wpDark|wpDaily)$/.test(k)) H.applyTheme();
+      if (/^(theme|wp|wpDaily)$/.test(k)) H.applyTheme();
       if (k === 'clock24') H.tick();
       if (/^(row|logos|names|ps5Port|beinPort)$/.test(k)) H.renderApps();
       if (/^(matchesRow|favs|euBigOnly|comps|reminders)$/.test(k)) { H.renderMatchesRow(); H.renderStrip(); }
