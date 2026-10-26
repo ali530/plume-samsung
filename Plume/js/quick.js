@@ -7,6 +7,7 @@
   var get = function (k) { return P.S.get(k); };
   var set = function (k, v) { P.S.set(k, v); };
   var THEME = { auto: 'Automatic', light: 'Light', dark: 'Dark' };
+  var NAMES = { focus: 'On focus', always: 'Always', never: 'Never' };
 
   var ALL = {
     theme: { icon: 'theme', label: 'Theme', value: function () { return THEME[get('theme')]; },
@@ -27,11 +28,51 @@
       act: function () { P.Football.refresh(); P.Plex.refresh(); P.Weather.refresh(); P.UI.toast(P.t('Refreshing matches, Plex and weather…'), 2000); } },
     matches: { round: true, icon: 'ball', label: 'Matches', act: function () { Q.close(); P.Centre.open(); }, leaves: true },
     home: { round: true, icon: 'home', label: 'Samsung Home', act: function () { Q.close(); P.TV.hideSelf(); }, leaves: true },
-    settings: { round: true, icon: 'gear', label: 'Settings', act: function () { Q.close(); P.Settings.open(); }, leaves: true }
+    settings: { round: true, icon: 'gear', label: 'Settings', act: function () { Q.close(); P.Settings.open(); }, leaves: true },
+    // more, hidden at first (Settings → Home screen → Quick panel)
+    daily: { icon: 'mountain', label: 'Wallpaper each day', value: function () { return get('wpDaily') ? 'On' : 'Off'; },
+      act: function () { set('wpDaily', !get('wpDaily')); } },
+    logos: { icon: 'grid', label: 'Logos', value: function () { return get('logos') === 'mono' ? 'Mono' : 'Colour'; },
+      act: function () { set('logos', get('logos') === 'mono' ? 'colour' : 'mono'); } },
+    names: { icon: 'list', label: 'App names', value: function () { return NAMES[get('names')]; },
+      act: function () { var l = ['focus', 'always', 'never']; set('names', l[(l.indexOf(get('names')) + 1) % 3]); } },
+    cwRow: { icon: 'rows', label: 'Continue Watching row', value: function () { return (get('folded') || {}).cw ? 'Folded' : 'Open'; },
+      act: function () { P.Home.toggleFold('cw'); } },
+    sleepAfter: { icon: 'sleep', label: 'Sleep after', value: function () { var m = get('sleepMin'); return m ? P.t('{n} min', { n: String(m).replace('.5', '½') }) : 'Never'; },
+      act: function () { var l = [1, 1.5, 2, 5, 10, 15, 30, 60, 0], i = l.indexOf(get('sleepMin')); set('sleepMin', l[(i + 1) % l.length]); } },
+    subStyle: { icon: 'info', label: 'Subtitle style', value: function () { return get('subStyle') === 'plain' ? 'Simple' : 'Styled'; },
+      act: function () { set('subStyle', get('subStyle') === 'plain' ? 'file' : 'plain'); } },
+    highlights: { icon: 'play', label: 'Highlights play in', value: function () { return get('highlightsIn') === 'plume' ? 'Plume' : 'YouTube app'; },
+      act: function () { set('highlightsIn', get('highlightsIn') === 'plume' ? 'app' : 'plume'); } },
+    resume: { round: true, icon: 'play', label: 'Resume watching', act: function () {
+      var c = (P.Plex.items || [])[0];
+      if (!c) { P.UI.toast(P.t('Nothing in Continue Watching')); return; }
+      Q.close(); P.Plex.open(c); }, leaves: true },
+    nextMatch: { round: true, icon: 'star', label: 'Next match', act: function () {
+      var F = P.Football, m = F.live()[0] || F.next();
+      Q.close(); P.Centre.open(m && m.id); }, leaves: true },
+    ps5: { round: true, icon: 'gamepad', label: 'PS5', act: function () { Q.close(); P.Apps.switchTo('hdmi:ps5'); }, leaves: true },
+    bein: { round: true, icon: 'settop', label: 'beIN', act: function () { Q.close(); P.Apps.switchTo('hdmi:bein'); }, leaves: true },
+    allApps: { round: true, icon: 'grid', label: 'All apps', act: function () { Q.close(); P.AllApps.open(); }, leaves: true },
+    plexApp: { round: true, icon: 'plex', label: 'Plex app', act: function () {
+      var it = P.Apps.items['app:plex'];
+      if (!it) { P.UI.toast(P.t("Couldn't open {name}", { name: 'Plex' })); return; }
+      Q.close(); P.Apps.open(it); }, leaves: true }
   };
   Object.keys(ALL).forEach(function (k) { ALL[k].key = k; });
-  var TILES = ['theme', 'clock', 'wall', 'sleep', 'alerts', 'lang'], ROUNDS = ['matchesRow', 'refresh', 'matches', 'home', 'settings'];
+  var TILES = ['theme', 'clock', 'wall', 'sleep', 'alerts', 'lang', 'daily', 'logos', 'names', 'cwRow', 'sleepAfter', 'subStyle', 'highlights'],
+    ROUNDS = ['matchesRow', 'refresh', 'matches', 'home', 'settings', 'resume', 'nextMatch', 'ps5', 'bein', 'allApps', 'plexApp'];
+  /* added later: hidden until you turn them on (quickOn); the first ones show until you hide them (quickHidden) */
+  var EXTRA = ['daily', 'logos', 'names', 'cwRow', 'sleepAfter', 'subStyle', 'highlights', 'resume', 'nextMatch', 'ps5', 'bein', 'allApps', 'plexApp'];
   Q.ALL = ALL;
+  Q.hidden = function (k) {
+    return EXTRA.indexOf(k) >= 0 ? (get('quickOn') || []).indexOf(k) < 0 : (get('quickHidden') || []).indexOf(k) >= 0;
+  };
+  Q.setShown = function (k, on) {
+    var key = EXTRA.indexOf(k) >= 0 ? 'quickOn' : 'quickHidden', l = (get(key) || []).filter(function (x) { return x !== k; });
+    if (key === 'quickOn' ? on : !on) l.push(k);
+    set(key, l);
+  };
 
   /* your order (new items from later versions go at the end), without the hidden ones */
   Q.order = function () {
@@ -42,8 +83,8 @@
     return { tiles: fix(o.tiles, TILES), rounds: fix(o.rounds, ROUNDS) };
   };
   function shown() {
-    var o = Q.order(), hid = get('quickHidden') || [];
-    var keep = function (k) { return hid.indexOf(k) < 0; };
+    var o = Q.order();
+    var keep = function (k) { return !Q.hidden(k); };
     return { tiles: o.tiles.filter(keep), rounds: o.rounds.filter(keep) };
   }
   var list = [], NT = 0;
@@ -72,19 +113,24 @@
     else cap.textContent = it && it.round ? P.t(it.label) + (it.on ? ' · ' + P.t(it.on() ? 'On' : 'Off') : '') : '';
   }
 
-  /* tiles: two columns, 0…NT-1; round buttons: one row after them */
+  /* tiles: two columns, 0…NT-1; round buttons after them, five to a row */
+  var RC = 5;
   function target(i, k) {
-    var n = list.length;
+    var n = list.length, nr = n - NT;
     if (i < NT) {
       if (k === 'left' && i % 2) return i - 1;
       if (k === 'right' && !(i % 2) && i + 1 < NT) return i + 1;
       if (k === 'up' && i >= 2) return i - 2;
-      if (k === 'down') return i + 2 < NT ? i + 2 : n > NT ? (i % 2 ? Math.max(NT, n - 2) : NT) : i;
+      if (k === 'down') return i + 2 < NT ? i + 2 : nr ? NT + Math.min(nr, RC) - 1 - (i % 2 ? 1 : Math.min(nr, RC) - 1) : i;
       return i;
     }
-    if (k === 'left' && i > NT) return i - 1;
-    if (k === 'right' && i < n - 1) return i + 1;
-    if (k === 'up' && NT) return NT % 2 ? NT - 1 : (i - NT) < (n - NT) / 2 ? NT - 2 : NT - 1;
+    var r = i - NT, row = Math.floor(r / RC), col = r % RC;
+    if (k === 'left' && col > 0) return i - 1;
+    if (k === 'right' && col < RC - 1 && r + 1 < nr) return i + 1;
+    if (k === 'down' && r + RC < nr) return i + RC;
+    if (k === 'down' && (row + 1) * RC < nr) return n - 1;
+    if (k === 'up' && row > 0) return i - RC;
+    if (k === 'up' && NT) return NT % 2 ? NT - 1 : col < RC / 2 ? NT - 2 : NT - 1;
     return i;
   }
   function move(k) { Q.at = target(Q.at, k); paint(); }
@@ -105,7 +151,7 @@
     P.UI.menu(el, P.t(it.label), [
       { label: P.t('Move'), icon: 'move', act: function () { Q.moving = it.key; Q.render(); } },
       { label: P.t('Hide'), icon: 'eyeOff', act: function () {
-        set('quickHidden', (get('quickHidden') || []).concat([it.key]));
+        Q.setShown(it.key, false);
         P.UI.toast(P.t('Hidden. Settings → Home screen → Quick panel brings it back'), 3000);
         Q.render();
       } }]);

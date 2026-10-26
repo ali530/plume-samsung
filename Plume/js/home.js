@@ -198,7 +198,7 @@
     P.$('#appRow').classList.toggle('editing', !!H.editing);
     H.netCard(!!cur && H.row === 'icons' && H.key === 'net');
   };
-  /* focus on the Wi-Fi icon: the network's name, signal and the TV's address */
+  /* focus on the Wi-Fi icon: the network's name and signal */
   var netOn = false;
   H.netCard = function (on) {
     var c = P.$('#netCard');
@@ -214,8 +214,7 @@
       var head = n.type === 'wifi' ? P.t('Wi-Fi') : n.type === 'wired' ? P.t('Cable (Ethernet)') : n.type === 'none' ? P.t('Not connected') : P.t('Connected');
       c.innerHTML = '<div class="nc-h">' + P.icon(n.type === 'none' ? 'wifiOff' : 'wifi') + ' ' + P.esc(head) + '</div>' +
         row('Network', n.ssid) + (n.type === 'wifi' && n.bars >= 0 ? '<div class="nc-r"><span>' + P.esc(P.t('Signal')) + '</span>' + bars + '</div>' : '') +
-        row('TV address', P.ltr(n.ip)) + row('Router', P.ltr(n.gateway)) +
-        '<div class="nc-n">' + P.esc(P.t("To change the network: Samsung's Settings → Connection")) + '</div>';
+        '';
     });
   };
   /* rows slide with a GPU transform rather than scrolling, which the TV redraws far more cheaply */

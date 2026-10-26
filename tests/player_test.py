@@ -189,6 +189,11 @@ async def main():
         await ev("(function(){var s=P.Player.debug(); if(!s.ui) P.Player.layer.key('down'); s.sel = 1; P.Player.layer.key('back');})()")   # Info focused, then the bar hides
         await key('ArrowDown', 200)
         check('the bar comes back focused on Play/Pause', await ev("(function(){var s=P.Player.debug(); return s.zone=='btns' && s.sel==3 && document.querySelector('#plUi [data-b=pp]').classList.contains('focus');})()"))
+        await ev("(function(){var s=P.Player.debug(); if(s.ui) P.Player.layer.key('back'); window._t0 = s.t;})()")
+        await key('ArrowRight', 60); await key('ArrowRight', 60)
+        jt = await ev("(function(){var s=P.Player.debug(); return s.jumpTo==null ? null : Math.round((s.jumpTo - window._t0)/1000);})()")
+        check('bar hidden: ▶ jumps forward, a second ▶ keeps jumping (+20 s)', jt is not None and 18 <= jt <= 22, jt)
+        await pg.wait_for_timeout(1700)
         await key('ArrowDown')
         for _ in range(3): await key('ArrowLeft', 120)
         await key('Enter', 400)
@@ -208,6 +213,8 @@ async def main():
         # info
         await key('ArrowDown'); await key('ArrowLeft'); await key('ArrowLeft'); await key('Enter', 300)   # the bar opens on Play/Pause; Info is two to the left
         check('info opens', await ev("document.getElementById('plInfo').classList.contains('on')"), await ev("(function(){var s=P.Player.debug(); return [s.ui, s.zone, s.sel, s.panel, s.info]})()"))
+        info = await ev("[...document.querySelectorAll('#plInfo span')].map(e=>e.textContent)")
+        check('info: just Video, Audio, Subtitles', info == ['Video', 'Audio', 'Subtitles'], info)
         await shot('p4-info')
         await key('Escape', 300)
         # credits -> up next

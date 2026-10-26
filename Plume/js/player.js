@@ -584,7 +584,17 @@
     }
     rows.push({ h: P.t('Subtitles') }); rows.push({ k: 'sub', v: 0, label: P.t('Off'), on: !pl.sub });
     var sl = labels(pl.subs, true);
-    pl.subs.forEach(function (x, i) { rows.push({ k: 'sub', v: x.id, label: sl[i], on: x === pl.sub }); });
+    // Arabic and English first (and the one playing, whatever its language); the rest under "More subtitles"
+    var main = function (x) { var l = (x.languageCode || x.language || '').toLowerCase().slice(0, 2); return l === 'ar' || l === 'en' || /arab|engl|عرب/i.test(x.language || x.displayTitle || ''); };
+    var rank = function (x) { var l = (x.languageCode || '').toLowerCase().slice(0, 2); return l === 'ar' ? 0 : l === 'en' ? 1 : main(x) ? 1 : 2; };
+    var order = pl.subs.map(function (x, i) { return i; }).sort(function (a, b) { return rank(pl.subs[a]) - rank(pl.subs[b]) || a - b; });
+    var rest = [];
+    order.forEach(function (i) {
+      var x = pl.subs[i];
+      if (main(x) || x === pl.sub || st.moreSubs) rows.push({ k: 'sub', v: x.id, label: sl[i], on: x === pl.sub });
+      else rest.push(i);
+    });
+    if (rest.length) rows.push({ k: 'more', label: P.t('More subtitles ({n})', { n: rest.length }) + (P.rtl ? '  ‹' : '  ›') });
     if (st.cues) rows.push({ k: 'offset', label: P.t('Subtitle timing') + '   ◀ ' + offText() + ' ▶' });
     rows.push({ k: 'search', label: P.t('Search subtitles online…') });
     rows.push({ h: P.t('Audio') });
@@ -645,6 +655,7 @@
     if (r.k === 'back') { st.search = null; st.pi = 0; renderPanel(); return; }
     if (r.k === 'lang') { searchSubs(st.search.other); return; }
     if (r.k === 'all') { st.search.showAll = true; renderPanel(); return; }
+    if (r.k === 'more') { st.moreSubs = true; renderPanel(); return; }
     if (r.k === 'pick') { pickOnline((st.search.showAll ? st.search.items.concat(st.search.others || []) : st.search.items)[r.v]); return; }
     if (r.k === 'sub') {
       put('/library/parts/' + pl.part.id + '?subtitleStreamID=' + r.v + '&allParts=1');
@@ -760,13 +771,21 @@
     var res = (m.videoResolution || '').toUpperCase(); if (res === '4K' || res === '1080' || res === '720') res = res === '4K' ? '4K' : res + 'p';
     var hdr = (pl.part.Stream || []).filter(function (x) { return x.streamType === 1; })[0] || {};
     var dr = hdr.DOVIPresent ? 'Dolby Vision' : /hdr|pq|smpte2084|hlg/i.test((hdr.colorTrc || '') + (hdr.displayTitle || '')) ? 'HDR10' : 'SDR';
-    var qq = qOf(st.quality);
-    var how = pl.direct ? P.t('Directly, no conversion') : pl.remuxSubs ? P.t('Repackaged: picture and sound copied, subtitles sent as text') : pl.q ? P.t('Converted to {q}', { q: qq ? P.t(qq.label) : '' }) : pl.burn ? P.t('Picture converted to show subtitles') : P.t('Audio converted, picture original');
-    var sl = pl.sub ? labels(pl.subs, true)[pl.subs.indexOf(pl.sub)] : P.t('Off');
-    var rows = [['Video', [res, dr, (m.videoCodec || '').toUpperCase()].filter(Boolean).join(' · ')],
-      ['Audio', pl.audio ? labels(pl.audios, false)[pl.audios.indexOf(pl.audio)] : '—'], ['Subtitles', sl + (st.subHow ? ' — ' + P.t(st.subHow) : '') + (st.ass && st.ass.ready ? ' · ' + P.t('styled as in the file') : pl.sub && st.styleNote ? ' · ' + P.t('plain') + ' (' + st.styleNote + ')' : '')],
-      ['Version', st.versionLabel || '—'], ['Playing', how], ['Server', srv().name], ['Bitrate', m.bitrate ? mbps(m.bitrate) : '—']];
+    var rows = [['Video', [res, dr].filter(Boolean).join(' · ')],
+      ['Audio', pl.audio ? labels(pl.audios, false)[pl.audios.indexOf(pl.audio)] : '—'], ['Subtitles', subLine()]];
     P.$('#plInfo').innerHTML = rows.map(function (r) { return '<div><span>' + P.t(r[0]) + '</span><b>' + P.esc(r[1]) + '</b></div>'; }).join('');
+  }
+  /* the subtitle and its look; a few words more only when it matters to you */
+  function subLine() {
+    var pl = st.plan;
+    if (!pl.sub) return P.t('Off');
+    var out = [labels(pl.subs, true)[pl.subs.indexOf(pl.sub)]], how = st.subHow || '';
+    if (/Couldn't/.test(how)) out.push(P.t("couldn't load"));
+    else if (pl.burn || pl.forceBurn || /into the picture/.test(how)) out.push(P.t('burned into the picture'));
+    else if (!st.cues && !(st.ass && st.ass.ready) && !/Shown by the TV/.test(how)) out.push(P.t('loading…'));
+    else if (st.ass && st.ass.ready) out.push(P.t('styled'));
+    else if (ASS.test(pl.sub.codec || '')) out.push(P.t('simple'));
+    return out.join(' · ');
   }
 
   function renderNext() {
@@ -1038,6 +1057,11 @@
         renderPanel(); return;
       }
       if (st.info) { if (k === 'back' || k === 'ok') { st.info = false; P.$('#plInfo').classList.remove('on'); show(true); } return; }
+      // ◀ ▶ with the bar hidden: back or forward 10 s (several presses make one jump); the next presses keep jumping
+      if ((k === 'left' || k === 'right') && (!st.ui || (st.arrowJump && Date.now() - st.arrowJump < 1500))) {
+        st.arrowJump = Date.now(); jump(k === 'left' ? -10000 : 10000); return;
+      }
+      if (k !== 'left' && k !== 'right') st.arrowJump = 0;
       if (!st.ui) {
         if (k === 'back') { V.close(); return; }
         if (k === 'ok' && st.skipTo) { jumpTo(st.skipTo); return; }
@@ -1069,7 +1093,7 @@
         if (b === 'pp') { playPause(); return; }
         if (b === 'rw') { jump(-10000); return; }
         if (b === 'ff') { jump(10000); return; }
-        if (b === 'set') { st.panel = true; st.pi = Math.max(0, panelRows().filter(function (r) { return !r.h; }).findIndex(function (r) { return r.on; })); renderPanel(); P.$('#plPanel').classList.add('on'); clearTimeout(hideT); return; }
+        if (b === 'set') { st.panel = true; st.moreSubs = false; st.pi = Math.max(0, panelRows().filter(function (r) { return !r.h; }).findIndex(function (r) { return r.on; })); renderPanel(); P.$('#plPanel').classList.add('on'); clearTimeout(hideT); return; }
         if (b === 'info') { st.info = true; renderInfo(); P.$('#plInfo').classList.add('on'); clearTimeout(hideT); return; }
         if (b === 'next' && st.nextMeta) { playNext(); return; }
       }

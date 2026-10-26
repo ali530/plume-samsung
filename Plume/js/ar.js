@@ -169,6 +169,11 @@ P.AR = {
   'One photo for both themes. Dark mode dims a day photo': 'صورة واحدة للسمتين. الوضع الداكن يعتّم صور النهار',
   'Free photos under the Unsplash and Pexels licences, packed into Plume when you install it': 'صور مجانية بترخيص Unsplash وPexels، تُضمَّن في Plume عند تثبيته',
   'Kept on the TV from last time': 'محفوظة على التلفاز من المرة السابقة', 'Read from the file · all lines here': 'مقروءة من الملف · كل الأسطر جاهزة',
+  // 2.16
+  "couldn't load": 'تعذّر تحميلها', 'burned into the picture': 'مدمجة في الصورة', 'loading…': 'جارٍ التحميل…', 'styled': 'منسّقة', 'simple': 'بسيطة',
+  'Nothing in Continue Watching': 'لا شيء في متابعة المشاهدة', '{n} shown': '{n} ظاهرة', 'Wallpaper each day': 'خلفية كل يوم',
+  'Continue Watching row': 'صف متابعة المشاهدة', 'Sleep after': 'السكون بعد', 'Resume watching': 'تابع المشاهدة', 'Next match': 'المباراة التالية',
+  'Plex app': 'تطبيق Plex', 'Folded': 'مطوي', 'Open': 'مفتوح', 'More subtitles ({n})': 'ترجمات أخرى ({n})',
   // cities
   'Riyadh': 'الرياض', 'Jeddah': 'جدة', 'Mecca': 'مكة المكرمة', 'Medina': 'المدينة المنورة', 'Dammam': 'الدمام', 'Khobar': 'الخبر', 'Dhahran': 'الظهران',
   'Taif': 'الطائف', 'Abha': 'أبها', 'Tabuk': 'تبوك', 'Buraidah': 'بريدة', 'Hail': 'حائل', 'Jazan': 'جازان', 'Najran': 'نجران', 'AlUla': 'العُلا', 'Al Ahsa': 'الأحساء'

@@ -9,7 +9,8 @@
     wpDaily: false,                // a different mountain each day
     clock24: false,                // 24-hour clock (20:33) instead of 12-hour (8:33)
     quickOrder: null,              // the quick panel's order: {tiles: [...], rounds: [...]} (null: as it comes)
-    quickHidden: [],               // quick panel items you hid (hold OK on one → Hide); Settings → Home screen brings them back
+    quickHidden: [],
+    quickOn: [],                   // quick panel items added in later versions that you turned on (they start hidden)               // quick panel items you hid (hold OK on one → Hide); Settings → Home screen brings them back
     logos: 'mono',                 // mono | colour
     names: 'focus',                // focus | always | never
     row: ['hdmi:ps5', 'hdmi:bein', 'app:plex', 'matches', 'app:youtube', 'app:netflix', 'app:shahid', 'app:appletv'],

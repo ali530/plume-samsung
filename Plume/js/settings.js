@@ -14,7 +14,7 @@
   var THEME = { auto: 'Automatic', light: 'Light', dark: 'Dark' };
   var NAMES = { focus: 'On focus', always: 'Always', never: 'Never' };
   var SLEEP = [1, 1.5, 2, 5, 10, 15, 30, 60, 0];
-  var VERSION = '2.15.0';
+  var VERSION = '2.16.0';
   function sleepText() { var m = get('sleepMin'); return m ? P.t('after {n} min', { n: String(m).replace('.5', '½') }) : 'Never'; }
   function wallSummary() { return get('wpDaily') ? 'A different one each day' : P.Walls.name(P.Walls.byId(get('wp')) || P.Walls.rockies); }
   /* every photo, for both themes; the preview on the left shows the focused one in light and dark mode */
@@ -31,8 +31,7 @@
     return { title: 'Quick panel', prev: 'quick', note: 'In the panel: hold OK on one to move it or hide it.',
       rows: [{ section: 'Shown' }].concat(o.tiles.concat(o.rounds).map(function (k) {
         var it = Q.ALL[k];
-        return { label: it.label, toggle: function () { return (get('quickHidden') || []).indexOf(k) < 0; },
-          act: function () { var h = (get('quickHidden') || []).slice(), i = h.indexOf(k); if (i < 0) h.push(k); else h.splice(i, 1); set('quickHidden', h); } };
+        return { label: it.label, toggle: function () { return !Q.hidden(k); }, act: function () { Q.setShown(k, Q.hidden(k)); } };
       }), [{ section: 'Order' }, { label: 'Back to the first order', value: function () { return ''; }, act: function () { set('quickOrder', null); P.UI.toast(P.t('Done')); } }]) };
   }
   S.switchLanguage = function () {
@@ -68,7 +67,7 @@
         { label: 'Wallpaper', value: function () { return wallSummary(); }, open: 'wp', prev: 'wall' },
         { label: 'A different mountain each day', toggle: function () { return get('wpDaily'); }, act: function () { set('wpDaily', !get('wpDaily')); },
           note: 'A new photo every day, from the ones that suit the theme' },
-        { label: 'Quick panel', value: function () { var n = (get('quickHidden') || []).length; return n ? P.t('{n} hidden', { n: n }) : 'All shown'; }, open: 'quickp', prev: 'quick' },
+        { label: 'Quick panel', value: function () { var Q = P.Quick, o = Q.order(), n = o.tiles.concat(o.rounds).filter(function (k) { return !Q.hidden(k); }).length; return P.t('{n} shown', { n: n }); }, open: 'quickp', prev: 'quick' },
         { section: 'Rows' },
         { label: 'Matches row on home', toggle: function () { return get('matchesRow'); }, act: function () { set('matchesRow', !get('matchesRow')); } }
       ] },
@@ -291,8 +290,9 @@
   }
   function quickMini() {
     var Q = P.Quick, o = Q.order(), hid = get('quickHidden') || [];
-    var cell = function (k) { var it = Q.ALL[k]; return '<i class="' + (it.round ? 'r' : 't') + (hid.indexOf(k) >= 0 ? ' off' : '') + '">' + P.icon(it.icon) + (it.round ? '' : '<span>' + P.esc(P.t(it.label)) + '</span>') + '</i>'; };
-    return '<div class="pq-t">' + o.tiles.map(cell).join('') + '</div><div class="pq-r">' + o.rounds.map(cell).join('') + '</div>';
+    var cell = function (k) { var it = Q.ALL[k]; return '<i class="' + (it.round ? 'r' : 't') + (Q.hidden(k) ? ' off' : '') + '">' + P.icon(it.icon) + (it.round ? '' : '<span>' + P.esc(P.t(it.label)) + '</span>') + '</i>'; };
+    var on = function (k) { return !Q.hidden(k); };
+    return '<div class="pq-t">' + o.tiles.filter(on).map(cell).join('') + '</div><div class="pq-r">' + o.rounds.filter(on).map(cell).join('') + '</div>';
   }
   function crestFor(name) {
     var F = P.Football, t = null;
