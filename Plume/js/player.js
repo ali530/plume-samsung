@@ -288,13 +288,20 @@
         if (st && st.fileSubs === mine) startStyled(R.header, fonts, want, true);
       });
       var ahead = R.mode === 'index' ? 120000 : 25000;
+      /* where you are first (at once after a skip), then, while nothing else is needed, the rest of the episode a few
+         lines at a time, so later skips find their lines already here */
       var pull = function () {
         if (!st || st.fileSubs !== mine) { clearInterval(t2); return; }
-        if (mine.busy) return;
-        mine.busy = true;
-        R.fill(Math.max(0, st.t - (st.subOff || 0)), st.t + ahead).then(function (lines) {
+        if (mine.busy) { mine.again = true; return; }
+        mine.busy = true; mine.again = false;
+        var now = Math.max(0, st.t - (st.subOff || 0)); mine.at = st.t;
+        R.fill(now, now + ahead, 0, now).then(function (lines) {
+          if (lines.length || R.mode !== 'index' || !R.left) return lines;
+          return R.fill(0, 1e15, 8, now);                      // the rest of the episode, quietly
+        }).then(function (lines) {
           mine.busy = false;
           if (!st || st.fileSubs !== mine) return;
+          if (mine.again) setTimeout(pull, 0);
           var add = lines.filter(function (l) { var k = l.a + '|' + (l.raw ? l.raw.Text : l.t); if (mine.have[k]) return false; mine.have[k] = true; return true; });
           var plain = add.filter(function (l) { return !l.skip; });
           if (plain.length) { st.cues = (st.cues || []).concat(plain).sort(function (x, y) { return x.a - y.a; }); subsAt(st.t); }
@@ -303,11 +310,13 @@
         }, function (e) {
           mine.busy = false;
           if (!st || st.fileSubs !== mine) return;
+          if (mine.again) setTimeout(pull, 0);
           if (mine.first) { clearInterval(t2); st.fileSubs = null; fallback(sub, 'reading from the file: ' + e.message); }
           else P.log('subs from file', e.message);   // a hiccup later on: try again on the next round
         });
       };
       var t2 = st.fileT = setInterval(pull, 2000);
+      mine.pull = pull;
       pull();
     }, function (e) {
       if (!st || st.subGen !== want) return;
@@ -802,6 +811,7 @@
     var t = st.t;
     if (st.cues) subsAt(t);
     syncStyled();
+    if (st.fileSubs && st.fileSubs.pull && Math.abs(t - (st.fileSubs.at || 0)) > 8000) { st.fileSubs.at = t; st.fileSubs.pull(); }   // a skip: read there now
     // skip intro: only when Plex marked the intro
     var intro = (st.markers || []).filter(function (m) { return m.type === 'intro' && t >= m.startTimeOffset && t < m.endTimeOffset - 1500; })[0];
     st.skipTo = intro ? intro.endTimeOffset : null;

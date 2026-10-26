@@ -293,10 +293,15 @@
           };
           if (R.mode === 'index') {
             var done = {};
-            R.fill = function (from, to) {
-              var list = mine.filter(function (c) { var t = c.time * ms; return t >= from - 15000 && t <= to && !done[c.cluster + ':' + c.rel]; });
+            /* limit: at most this many lines; focus: the lines nearest this moment come first (where you landed after a skip) */
+            R.fill = function (from, to, limit, focus) {
+              var at = focus != null ? focus : from;
+              var list = mine.filter(function (c) { var t = c.time * ms; return t >= from - 15000 && t <= to && !done[c.cluster + ':' + c.rel]; })
+                .sort(function (x, y) { var dx = x.time * ms - at, dy = y.time * ms - at; return (dx < -3000 ? 1e12 - dx : dx) - (dy < -3000 ? 1e12 - dy : dy); });
+              if (limit) list = list.slice(0, limit);
               list.forEach(function (c) { done[c.cluster + ':' + c.rel] = true; });
               // a few at a time, so they arrive in order and never crowd the network
+              R.left = mine.filter(function (c) { return !done[c.cluster + ':' + c.rel]; }).length;
               var out = [], i = 0;
               var next = function () {
                 if (i >= list.length) return Promise.resolve(out);
