@@ -17,7 +17,7 @@ function Get-Photo([string]$url, [string]$file, [int]$min) {
   if ($url -match '/free-photo-of-[^/?]+') { $urls += ($url -replace '/free-photo-of-[^/?]+', '') }   # Pexels' plain address
   foreach ($u in $urls) {
     try {
-      Invoke-WebRequest -Uri $u -OutFile $file -UseBasicParsing -TimeoutSec 60 -Headers @{ 'User-Agent' = 'Mozilla/5.0 (Plume wallpapers)' }
+      Invoke-WebRequest -Uri $u -OutFile $file -UseBasicParsing -TimeoutSec 90 -Headers @{ 'User-Agent' = 'Mozilla/5.0 (Plume wallpapers)' }
       $b = [IO.File]::ReadAllBytes($file)
       if ($b.Length -ge $min -and $b[0] -eq 0xFF -and $b[1] -eq 0xD8) { return $true }   # a JPEG
     } catch {}
@@ -33,7 +33,7 @@ foreach ($line in Get-Content $list) {
   if ($p.Count -lt 3) { continue }
   $id = $p[0]
   $big = Join-Path $dir "$id.jpg"; $small = Join-Path $dir "$id-s.jpg"
-  if ((Get-Photo $p[1] $big 40000) -and (Get-Photo $p[2] $small 4000)) { $ok += $id }
+  if ((Get-Photo $p[1] $big 12000) -and (Get-Photo $p[2] $small 1500)) { $ok += $id }
   else { $bad += $id; Remove-Item -Force -ErrorAction SilentlyContinue $big, $small }
 }
 $js = 'P.WALLS_LOCAL = {' + (($ok | ForEach-Object { "'" + $_ + "': 1" }) -join ', ') + '};'

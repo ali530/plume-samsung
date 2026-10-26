@@ -6,7 +6,7 @@
    loads from the internet; one that can't load at all falls back to the Rockies.
    "A different mountain each day" goes through them, a new one every day. */
 (function () {
-  var US = function (id) { return { src: 'unsplash', u: 'https://images.unsplash.com/photo-' + id }; };
+  var US = function (id, flagged) { return { src: 'unsplash', u: 'https://images.unsplash.com/' + (flagged ? 'flagged/' : '') + 'photo-' + id }; };
   var PX = function (id, slug) {
     return { src: 'pexels', u: 'https://images.pexels.com/photos/' + id + '/pexels-photo-' + id + (slug ? '/free-photo-of-' + slug : '') + '.jpeg' };
   };
@@ -27,7 +27,7 @@
     ['clear-summit', 'Clear summit', 0, PX(31340234, 'snowy-mountain-peak-under-clear-sky')],
     ['snowy-summit', 'Snowy summit', 0, PX(416779)],
     // night and dusk photos: dark mode only, as they are
-    ['starry-peak', 'Starry peak', 1, US('1551770908-437bb2e457b8')],
+    ['starry-peak', 'Starry peak', 1, US('1551770908-437bb2e457b8', true)],
     ['milky-way', 'Stars over the snow', 1, US('1764366795867-a0e7fcbf791e')],
     ['night-snow', 'Night snow', 1, US('1694900565922-d279cef76fd2')],
     ['star-summit', 'Summit under the stars', 1, US('1477840539360-4a1d23071046')],
