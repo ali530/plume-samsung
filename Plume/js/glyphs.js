@@ -57,7 +57,18 @@
     play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke-linejoin="round"/>',
     pin: '<path d="M12 21s-6.5-6.2-6.5-11a6.5 6.5 0 0 1 13 0c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
     list: '<path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.8" cy="6.5" r="1.1"/><circle cx="4.8" cy="12" r="1.1"/><circle cx="4.8" cy="17.5" r="1.1"/>',
-    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>',
+    mountain: '<path d="M2.5 19.5l6.6-11 3.6 5.6 2.3-3.4 6.5 8.8z" stroke-linejoin="round"/><path d="M7.2 11.7l1.9 1.4 1.6-1.2" stroke-linejoin="round"/>',
+    home: '<path d="M4 11l8-6.5 8 6.5M6 9.5v10h12v-10" stroke-linejoin="round"/>',
+    refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" stroke-linejoin="round"/>',
+    lang: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.5 3.6 5.5 3.6 8.5s-1 6-3.6 8.5c-2.6-2.5-3.6-5.5-3.6-8.5s1-6 3.6-8.5z"/>',
+    theme: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+    rows: '<rect x="3.5" y="5" width="17" height="5.5" rx="1.6"/><rect x="3.5" y="13.5" width="17" height="5.5" rx="1.6"/>',
+    sleep: '<path d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/><path d="M15 4h3.5L15 8h3.5" stroke-linejoin="round"/>',
+    info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1" fill="currentColor" stroke="none"/>',
+    input: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8.5 20h7M11 9l3 2-3 2"/>',
+    plex: '<path d="M8 4h4.5l5 8-5 8H8l5-8z" stroke-linejoin="round"/>'
   };
   P.icon = function (name, cls) {
     return '<svg class="ic i-' + name + ' ' + (cls || '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">' + (G[name] || '') + '</svg>';

@@ -9,7 +9,9 @@ Made and tested on a Samsung **S90C** OLED (2023); it should run on Samsung TVs 
 
 ## What's in it
 
-- **Home screen:** clock, date and weather, the mountain wallpaper (light, dark or automatic at sunset), one row of app logos, and Plex Continue Watching.
+- **Home screen:** clock (12- or 24-hour), date and weather, a mountain wallpaper (light, dark or automatic at sunset), one row of app logos, and Plex Continue Watching.
+- **Wallpapers:** 25 mountain photos, 14 for light mode and 11 for dark mode, chosen separately in Settings → Home screen, with a preview. *A different mountain each day* goes through them. The two Rockies photos are inside Plume; the rest are free Unsplash and Pexels photos loaded from the internet, and one that can't load falls back to the Rockies.
+- **Quick panel** (the first icon at the top right): tiles for Theme, Clock (12/24-hour), Wallpaper (OK: the next one), Sleep screen now, Match alerts and Language, and round buttons for the matches row on/off, Refresh (matches, Plex and weather), Matches, Samsung Home and Settings. No volume: the remote does that.
 - **Match strip** under the date. It shows a live match with the score and minute, and rotates through matches when several are live (a match of one of your teams stays put). Before anything starts, it shows the next big match with a countdown. When the day's matches are over, it disappears. OK on a live match switches to beIN; on an upcoming one it sets a reminder.
 - **App row:** the TV's own app icons turned into clean single-colour marks, or tinted in each app's colour. Hold OK on a tile to move it or remove it. **PS5** (HDMI 1) and **beIN** (HDMI 2) have their own tiles; the ports are set in Settings → Inputs. App names: on focus, always, or never.
 - **Matches tile:** matches grouped by competition, with scorers, stadium and a countdown. Beside the list: the focused match's league table, group or cup round.
@@ -25,11 +27,11 @@ Made and tested on a Samsung **S90C** OLED (2023); it should run on Samsung TVs 
 - **Episodes:** hold OK on an episode in Continue Watching → *Episodes*: the show's seasons and episodes, with progress and watched marks. OK plays any episode in Plume's player.
 - **Hide:** hold OK on a card. *Remove from Continue Watching* takes away that one title until it's watched again. *Hide this show* (or *movie*) keeps the whole show off Plume, including episodes watched later on another device using the same Plex account. Plex itself keeps everything. Settings → Plex → *Hidden* lists hidden shows and movies; OK brings one back.
 - **Subtitle timing:** ⚙ → *Subtitle timing*, ◀ earlier / ▶ later by half a second, remembered per episode (for subtitles Plume draws). *Search subtitles online* lists the ones made for your exact file first.
-- **Subtitles:** SRT and WebVTT are drawn by Plume as clear white lines. ASS subtitles keep their own fonts, colours, outlines, positions and movement (drawn by libass, in `vendor/libass`, with the fonts stored in the video file); Settings → Plex → *Subtitle style: Plain lines* draws them as white lines instead, and Plume falls back to plain lines by itself if the engine can't start. A subtitle stored inside the video comes from Plex on its own (no conversion), or else Plume reads its lines straight out of the MKV file a little ahead of playback (`js/subfile.js`); only then does the server convert. Info (ⓘ) says which way worked.
+- **Subtitles:** SRT and WebVTT are drawn by Plume as clear white lines. ASS subtitles keep their own fonts, colours, outlines, positions and movement (drawn by libass, in `vendor/libass`, with the fonts stored in the video file); Settings → Plex → *Subtitle style: Simple* draws them as white lines instead, and Plume falls back to plain lines by itself if the engine can't start. A subtitle stored inside the video comes from Plex on its own (no conversion), or else Plume reads its lines straight out of the MKV file a little ahead of playback (`js/subfile.js`); only then does the server convert. Info (ⓘ) says which way worked.
 - **Versions** (4K and 1080p, or original and dubbed): one card plays the version you played last: if you watched a version further in the Plex app since you last stopped in Plume, that one; otherwise the one you played in Plume (with no history yet: the one furthest along, then 4K). Info shows which version is playing and why. Hold OK on the card to pick another version (*Play · 4K*, *Play · Arabic*, …); Plume remembers it. Settings → Plex → *Default quality*: Last played, 4K or 1080p (same language only).
 - **Fold rows away:** press Up from the cards to reach a row's title (Continue Watching, or Today's matches when that row is on) and press OK to fold the row away; OK again opens it. Plume remembers it.
 - **Smooth on the TV:** rows slide on the graphics chip, focus effects fade ready-made layers, posters load at the size shown, and a held arrow never builds up a backlog.
-- **Settings** (gear icon): theme, wallpapers, logos, app names, apps in the row, the optional matches row on the home screen, Plex account and server, competitions, your teams, HDMI ports, sleep delay, weather city.
+- **Settings** (gear icon): full screen over the blurred wallpaper, in groups: Apps, Inputs, Home screen, Sleep screen, Appearance, Language and Clock, Weather, Football, Plex, About. The left side shows a live preview of the focused group: a small home screen with your wallpaper, the sleep screen, your teams and the next big match, the clock in your format.
 
 ## Install (about 45 minutes the first time, a minute after that)
 
@@ -79,7 +81,7 @@ No account, no ads, no tracking. Plume connects only to:
 - **plex.tv** and your Plex server, for Continue Watching (Plume never sees your Plex password),
 - **ESPN's public scoreboard feed**, for fixtures, scores and tables (unofficial: ESPN could change it at any time),
 - **Open-Meteo**, for the weather of the city you pick,
-- **Unsplash**, for the sleep screen photos,
+- **Unsplash** and **Pexels**, for the sleep screen photos and the wallpapers you choose,
 - **YouTube**, only when you ask for a match's highlights.
 
 ## Files
@@ -87,7 +89,7 @@ No account, no ads, no tracking. Plume connects only to:
 | | |
 |---|---|
 | `Plume/` | The TV app (HTML, CSS, JavaScript; no build step) |
-| `Plume/js/` | `home.js` home screen · `football.js` feed and rules · `centre.js` match centre · `plex.js` · `apps.js` app row and logos · `settings.js` · `sleep.js` · `tv.js` Samsung APIs |
+| `Plume/js/` | `home.js` home screen · `football.js` feed and rules · `centre.js` match centre · `plex.js` · `apps.js` app row and logos · `settings.js` · `quick.js` quick panel · `walls.js` wallpapers · `sleep.js` · `tv.js` Samsung APIs |
 | `install.bat` | Package, sign, install and open on the TV (Windows) |
 | `tests/harness.py` | Runs Plume in a browser with a stand-in TV, feed and Plex server, and checks the remote-control flows |
 
@@ -95,6 +97,6 @@ No account, no ads, no tracking. Plume connects only to:
 
 - Design after **Plume Launcher** by aradhyas8 (MIT).
 - Wallpaper: "Canada" by Thomas Curryer, via Unsplash (CC0), as bundled with Plume Launcher.
-- Sleep screen photos: Unsplash (Unsplash License), loaded at run time.
+- Sleep screen photos and wallpapers: Unsplash (Unsplash License) and Pexels (Pexels License), loaded at run time.
 - Font: Inter (SIL Open Font License). QR codes: qrcode-generator by Kazuhiko Arase (MIT).
 - Football data: ESPN. Weather: Open-Meteo. All trademarks belong to their owners.

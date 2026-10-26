@@ -13,8 +13,9 @@ P.esc = function (s) {
 
 P.pad = function (n) { return (n < 10 ? '0' : '') + n; };
 
-/* 12-hour clock without am/pm, like the Plume screenshots ("3:32"). */
+/* 12-hour clock without am/pm, like the Plume screenshots ("3:32"), or 24-hour ("15:32") when chosen in Settings. */
 P.clockText = function (d) {
+  if (P.S && P.S.get('clock24')) return P.pad(d.getHours()) + ':' + P.pad(d.getMinutes());
   var h = d.getHours() % 12 || 12;
   return h + ':' + P.pad(d.getMinutes());
 };

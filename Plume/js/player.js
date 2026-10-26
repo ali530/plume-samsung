@@ -523,7 +523,7 @@
     P.$('#plSkip').classList.toggle('on', !!st.skipTo);
     P.$('#plSkip').classList.toggle('focus', !!st.skipTo && st.zone === 'skip');
   }
-  function clock() { var c = P.$('#plClock'); if (c) c.textContent = P.hhmm(new Date()); }
+  function clock() { var c = P.$('#plClock'); if (c) c.textContent = P.clockText(new Date()); }
 
   /* ---------- the gear panel: subtitles, audio, quality ---------- */
   function panelRows() {

@@ -1,8 +1,6 @@
 /* The home screen: clock, match strip, apps row, optional matches row, Plex Continue Watching. */
 (function () {
   var H = { row: 'apps', key: null, editing: null, dark: false };
-  var WALLS = { 'rockies-day': 'img/rockies-day.jpg', 'rockies-dusk': 'img/rockies-dusk.jpg', 'plain': '' };
-  H.WALL_NAMES = { 'rockies-day': P.t('Rockies (day)'), 'rockies-dusk': P.t('Rockies (dusk)'), 'plain': P.t('Plain') };
 
   /* ---------- theme and wallpaper ---------- */
   H.applyTheme = function () {
@@ -12,12 +10,19 @@
     H.dark = dark;
     document.body.classList.toggle('dark', dark);
     document.body.classList.toggle('light', !dark);
-    var src = WALLS[P.S.get(dark ? 'wpDark' : 'wpLight')];
-    var img = P.$('#wallImg');
-    if (src === '') { img.removeAttribute('src'); img.style.opacity = 0; }
-    else if (img.getAttribute('src') !== src) { img.style.opacity = 0; img.onload = function () { img.style.opacity = 1; }; img.src = src; }
-    else img.style.opacity = 1;
+    H.showWall();
     if (changed) H.renderApps();
+  };
+
+  /* the wallpaper of the current mode; a photo that doesn't load (no internet) falls back to the Rockies inside Plume */
+  H.showWall = function () {
+    var W = P.Walls, w = W.current(H.dark), src = W.url(w), img = P.$('#wallImg');
+    H.wall = w;
+    if (img.getAttribute('src') === src) { img.style.opacity = 1; return; }
+    img.style.opacity = 0;
+    img.onload = function () { img.style.opacity = 1; };
+    img.onerror = function () { if (w.src === 'plume') return; W.failed[w.id] = true; H.showWall(); };
+    img.src = src;
   };
 
   /* ---------- clock, date, weather ---------- */
@@ -242,7 +247,7 @@
     var cur = H.current(); if (!cur) return;
     var k = cur.dataset.key;
     if (H.row === 'matchesH' || H.row === 'cwH') { H.toggleFold(H.row.slice(0, -1)); return; }
-    if (H.row === 'icons') { if (k === 'settings') P.Settings.open(); else if (k === 'allapps') P.AllApps.open(); return; }
+    if (H.row === 'icons') { if (k === 'settings') P.Settings.open(); else if (k === 'allapps') P.AllApps.open(); else if (k === 'quick') P.Quick.open(); return; }
     if (H.row === 'strip') {
       if (hold || !stripMatch) { P.Centre.open(stripMatch && stripMatch.id); return; }
       // the strip is a shortcut: live → beIN at once, upcoming → reminder; the match centre has the full menu
@@ -305,8 +310,10 @@
   };
 
   H.init = function () {
+    P.$('#icons [data-act=quick]').innerHTML = P.icon('sliders');
     P.$('#icons [data-act=allapps]').innerHTML = P.icon('grid');
     P.$('#icons [data-act=settings]').innerHTML = P.icon('gear');
+    P.Walls.fix();
     H.applyTheme();
     H.tick(); setInterval(H.tick, 10000);
     setInterval(H.applyTheme, 60000);
@@ -320,7 +327,8 @@
     P.bus.on('logos', function () { clearTimeout(logosT); logosT = setTimeout(H.renderApps, 50); });
     P.bus.on('weather', function () { H.tick(); H.applyTheme(); });
     P.bus.on('setting', function (k) {
-      if (/^(theme|wpLight|wpDark)$/.test(k)) H.applyTheme();
+      if (/^(theme|wpLight|wpDark|wpDaily)$/.test(k)) H.applyTheme();
+      if (k === 'clock24') H.tick();
       if (/^(row|logos|names|ps5Port|beinPort)$/.test(k)) H.renderApps();
       if (/^(matchesRow|favs|euBigOnly|comps|reminders)$/.test(k)) { H.renderMatchesRow(); H.renderStrip(); }
     });

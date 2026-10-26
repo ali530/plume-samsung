@@ -6,6 +6,8 @@
     theme: 'auto',                 // auto | light | dark   (auto: dark from sunset to sunrise)
     wpLight: 'rockies-day',
     wpDark: 'rockies-dusk',
+    wpDaily: false,                // a different mountain each day (light and dark each go through their own photos)
+    clock24: false,                // 24-hour clock (20:33) instead of 12-hour (8:33)
     logos: 'mono',                 // mono | colour
     names: 'focus',                // focus | always | never
     row: ['hdmi:ps5', 'hdmi:bein', 'app:plex', 'matches', 'app:youtube', 'app:netflix', 'app:shahid', 'app:appletv'],
