@@ -118,6 +118,7 @@
   }
   function loadSubs(sub) {
     st.cues = null; st.cueAt = 0; st.subOff = null; setSubText(''); stopEmbedded();
+    clearInterval(st.fileT); st.fileSubs = null;
     st.subHow = sub ? 'Loading…' : '';
     var want = st.subGen = (st.subGen || 0) + 1;
     if (!sub || IMAGE_SUBS.test(sub.codec || '')) { st.subHow = sub ? 'Drawn into the picture by the server' : ''; return; }
@@ -133,13 +134,88 @@
       })
       .catch(function (e) {
         if (!st || st.subGen !== want) return;
-        // the TV can read the track inside the video, but only once the video is ready: wait for it if needed
-        if (st.plan.direct && !sub.key) {
-          if (!st.ready) { st.pendingSub = sub; st.subHow = 'Waiting for the video'; return; }
-          if (useEmbeddedSubs(sub)) { st.subHow = 'Shown by the TV'; return; }
-        }
-        fallback(sub, e && e.message || 'error');
+        if (sub.key) { fallback(sub, e && e.message || 'error'); return; }       // a separate subtitle file that failed
+        // inside the video: 1) Plex sends the subtitle on its own, like the Plex app; 2) the TV reads it (not ASS);
+        // 3) Plume reads it from the file; then the server's conversions as before
+        st.subLog = (st.subLog || []).concat('subtitle file: ' + (e && e.message || 'error'));
+        st.subHow = 'Asking Plex for them…';
+        fromPlex(sub).then(function (cues) {
+          if (!st || st.subGen !== want) return;
+          st.cues = cues; st.subHow = 'Sent by Plex'; subsAt(st.t);
+        }, function (e1) {
+          if (!st || st.subGen !== want) return;
+          st.subLog = st.subLog.concat('Plex on its own: ' + e1.message);
+          if (st.plan.direct && !ASS.test(sub.codec || '')) {
+            if (!st.ready) { st.pendingSub = sub; st.subHow = 'Waiting for the video'; return; }
+            if (useEmbeddedSubs(sub)) { st.subHow = 'Shown by the TV'; return; }
+            st.subLog = st.subLog.concat('the TV: it has no such track');
+          }
+          fromFile(sub, want);
+        });
       });
+  }
+
+  /* 1) Plex sends the subtitle on its own while the video plays untouched (no conversion of the picture) */
+  var ASS = /^(ass|ssa)$/i;
+  function fromPlex(sub) {
+    var s = srv(), errs = [];
+    var common = ['path=' + encodeURIComponent('/library/metadata/' + st.key), 'mediaIndex=0', 'partIndex=0', 'protocol=http', 'directPlay=1', 'directStream=1',
+      'subtitles=sidecar', 'subtitleStreamID=' + sub.id, 'session=' + encodeURIComponent(st.session + '-subs'),
+      'X-Plex-Client-Identifier=' + encodeURIComponent(P.S.get('clientId')), 'X-Plex-Product=Plume', 'X-Plex-Token=' + tok()].join('&');
+    var tries = [ASS.test(sub.codec || '') ? 'ass' : 'srt', 'srt'].filter(function (f, i, a) { return a.indexOf(f) === i; });
+    return tries.reduce(function (p, f) {
+      return p.catch(function () {
+        var extra = 'add-transcode-target(type=subtitleProfile&context=all&protocol=http&container=' + f + '&subtitleCodec=' + f + ')';
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null, t = setTimeout(function () { if (ctrl) ctrl.abort(); }, 15000);
+        return fetch(s.uri + '/video/:/transcode/universal/subtitles?' + common + '&subtitleFormat=' + f + '&X-Plex-Client-Profile-Extra=' + encodeURIComponent(extra),
+          { headers: P.Plex.hdrs(s.token), signal: ctrl && ctrl.signal }).then(function (r) {
+          return r.text().then(function (txt) {
+            clearTimeout(t);
+            if (!r.ok) throw new Error('server said ' + r.status + (txt ? ': ' + txt.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) : ''));
+            var cues = parseSubs(txt);
+            if (!cues.length) throw new Error('nothing in what it sent');
+            return cues;
+          });
+        }).catch(function (e) { clearTimeout(t); errs.push(e.name === 'AbortError' ? 'no answer' : e.message); throw new Error(errs.join(' / ')); });
+      });
+    }, Promise.reject(new Error('')));
+  }
+
+  /* 3) Plume reads the subtitle lines out of the video file, a little ahead of where you are (see subfile.js) */
+  function fromFile(sub, want) {
+    var pl = st.plan, s = srv();
+    var isMkv = /\.mkv(\?|$)/i.test(pl.part.key || '') || /mkv|matroska/i.test((pl.part.container || '') + ' ' + (pl.media.container || ''));
+    if (!P.SubFile || !isMkv) { fallback(sub, P.SubFile ? 'reading from the file: only MKV files hold these' : 'reading from the file: not available'); return; }
+    st.subHow = 'Reading them from the file…';
+    var inFile = pl.subs.filter(function (x) { return !x.key; });
+    P.SubFile.open(s.uri + pl.part.key + (pl.part.key.indexOf('?') < 0 ? '?' : '&') + 'X-Plex-Token=' + tok(),
+      { index: sub.index, nth: inFile.indexOf(sub), lang: sub.languageCode || '' }).then(function (R) {
+      if (!st || st.subGen !== want) return;
+      var mine = st.fileSubs = { R: R, busy: false, first: true, have: {} };
+      var ahead = R.mode === 'index' ? 120000 : 25000;
+      var pull = function () {
+        if (!st || st.fileSubs !== mine) { clearInterval(t2); return; }
+        if (mine.busy) return;
+        mine.busy = true;
+        R.fill(Math.max(0, st.t - (st.subOff || 0)), st.t + ahead).then(function (lines) {
+          mine.busy = false;
+          if (!st || st.fileSubs !== mine) return;
+          var add = lines.filter(function (l) { var k = l.a + '|' + l.t; if (mine.have[k]) return false; mine.have[k] = true; return true; });
+          if (add.length) { st.cues = (st.cues || []).concat(add).sort(function (x, y) { return x.a - y.a; }); subsAt(st.t); }
+          if (mine.first) { mine.first = false; st.subHow = R.mode === 'index' ? 'Read from the file' : 'Read from the file, piece by piece'; }
+        }, function (e) {
+          mine.busy = false;
+          if (!st || st.fileSubs !== mine) return;
+          if (mine.first) { clearInterval(t2); st.fileSubs = null; fallback(sub, 'reading from the file: ' + e.message); }
+          else P.log('subs from file', e.message);   // a hiccup later on: try again on the next round
+        });
+      };
+      var t2 = st.fileT = setInterval(pull, 2000);
+      pull();
+    }, function (e) {
+      if (!st || st.subGen !== want) return;
+      fallback(sub, 'reading from the file: ' + e.message);
+    });
   }
   /* The subtitle is inside the video, the server won't hand it over as a file and the TV can't read it (ASS, for example).
      1) ask the server to repackage the video (picture and sound copied, no quality loss) and send the subtitles as text;
@@ -164,7 +240,7 @@
     if (!st || !sub || IMAGE_SUBS.test(sub.codec || '')) return;
     // what each step got back, for Info: the subtitle file, the repackaged stream, the converted picture
     var stepName = st.triedBurn ? 'converted picture' : st.triedRemux ? 'repackaged stream' : 'subtitle file';
-    st.subLog = (st.subLog || []).concat(stepName + ': ' + why);
+    st.subLog = (st.subLog || []).concat(/^reading from the file/.test(why) ? why : stepName + ': ' + why);
     var pl = st.plan;
     if (!st.triedRemux) { st.triedRemux = true; pl.remuxSubs = true; pl.forceBurn = false; st.subHow = 'Asking the server to send them as text'; restart({}); return; }
     if (!st.triedBurn) { st.triedBurn = true; pl.remuxSubs = false; pl.forceBurn = true; st.subHow = 'Drawn into the picture by the server'; restart({}); return; }
@@ -598,7 +674,7 @@
         A.play(); st.playing = true; st.ready = true; root.classList.remove('waiting'); report('playing'); show(true); paint();
         if (st.pendingSub) {   // a subtitle that needed the video to be ready first
           var ps = st.pendingSub; st.pendingSub = null;
-          if (st.plan.sub === ps) { if (useEmbeddedSubs(ps)) st.subHow = 'Shown by the TV'; else fallback(ps, 'the TV has no such track'); }
+          if (st.plan.sub === ps) { if (useEmbeddedSubs(ps)) st.subHow = 'Shown by the TV'; else { st.subLog = (st.subLog || []).concat('the TV: it has no such track'); fromFile(ps, st.subGen); } }
         }
       };
       if (st.plan.direct && offsetMs > 1000) A.seekTo(offsetMs, go, go); else go();
@@ -758,7 +834,7 @@
     if (st.key) P.Plex.snapshot(st.card, st.key);
     if (st.plan && !st.plan.direct) ping('/video/:/transcode/universal/stop?session=' + st.session);
     try { av().stop(); av().close(); } catch (e) {}
-    clearInterval(tickT); clearInterval(saveT); clearInterval(otherT); clearTimeout(hideT); clearTimeout(jumpT); clearInterval(st.vttT);
+    clearInterval(tickT); clearInterval(saveT); clearInterval(otherT); clearTimeout(hideT); clearTimeout(jumpT); clearInterval(st.vttT); clearInterval(st.fileT); st.fileSubs = null;
     st = null; V.open_ = false;
     if (root) { root.remove(); root = null; } subEl = null;
     document.body.classList.remove('playing');

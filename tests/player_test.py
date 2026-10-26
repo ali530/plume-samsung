@@ -89,6 +89,26 @@ async def main():
                 if subsmode.get('added') and path.endswith('/403'):
                     m['Media'][0]['Part'][0]['Stream'].append({'id': 55, 'key': '/library/streams/55', 'streamType': 3, 'codec': 'srt', 'languageCode': 'ara', 'displayTitle': 'Arabic (SRT External)'})
                 await route.fulfill(json={'MediaContainer': {'Metadata': [m]}}); return
+            if path == '/library/metadata/404':
+                m = EP('404', 1, 'Subtitled')
+                m['Media'][0]['Part'][0]['key'] = '/library/parts/9404/1/file.mkv'; m['Media'][0]['Part'][0]['id'] = 9404
+                m['Media'][0]['Part'][0]['Stream'] = [{'streamType': 1, 'codec': 'h264', 'index': 0}, {'id': 12, 'streamType': 2, 'codec': 'aac', 'index': 1, 'languageCode': 'eng', 'displayTitle': 'English', 'selected': True},
+                    {'id': 42, 'streamType': 3, 'codec': 'srt', 'index': 2, 'languageCode': 'eng', 'displayTitle': 'English (SRT)'},
+                    {'id': 43, 'streamType': 3, 'codec': 'ass', 'index': 3, 'languageCode': 'ara', 'displayTitle': 'Arabic (ASS)', 'selected': True}]
+                m['Media'][0]['videoResolution'] = '1080'
+                await route.fulfill(json={'MediaContainer': {'Metadata': [m]}}); return
+            if path == '/video/:/transcode/universal/subtitles':
+                if subsmode.get('plexsub') == 'ok':
+                    await route.fulfill(body=open(os.path.join(HERE, 'fixtures', 'subs-test.ass'), encoding='utf-8').read(), content_type='text/x-ssa; charset=utf-8'); return
+                await route.fulfill(status=400, body='Transcoding is disabled by the server admin'); return
+            if path == '/library/parts/9404/1/file.mkv':
+                data = open(os.path.join(HERE, 'fixtures', 'subs-test.mkv'), 'rb').read()
+                import re as _re
+                m = _re.match(r'bytes=(\d+)-(\d+)', route.request.headers.get('range', ''))
+                if not m: subsmode['whole'] = True; await route.fulfill(status=200, body=b''); return
+                a_, b_ = int(m.group(1)), min(int(m.group(2)), len(data) - 1)
+                subsmode['ranges'] = subsmode.get('ranges', 0) + 1
+                await route.fulfill(status=206, body=data[a_:b_ + 1], headers={'Content-Range': 'bytes %d-%d/%d' % (a_, b_, len(data)), 'Content-Type': 'video/x-matroska'}); return
             if path == '/video/:/transcode/universal/decision':
                 if subsmode['master'] == 'refuse':
                     await route.fulfill(json={'MediaContainer': {'generalDecisionCode': 2000, 'generalDecisionText': 'Transcoding is disabled by the server admin'}}); return
@@ -306,6 +326,28 @@ async def main():
         await ev("P.Player.layer.key('back')")
         check('the clock stays right (no jumping)', 600000 <= st_.get('t', 0) <= 640000, st_.get('t'))
         await key('Escape', 200); await key('Escape', 900)
+        # an Arabic ASS inside the file, conversion refused (your server): 1) Plex sends it on its own
+        subsmode['master'] = 'refuse'; subsmode['plexsub'] = 'ok'
+        await ev("window.__staleErrors = false; window.__absTime = false; window.__failBurn = false")
+        await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(2500)
+        st3 = await ev("(function(){var s=P.Player.debug();return {how:s.subHow, n:(s.cues||[]).length, sub:document.getElementById('plSub').textContent, top:document.getElementById('plSubTop').textContent}})()")
+        check('ASS in the file: Plex sends it on its own, Plume draws it', st3['how'] == 'Sent by Plex' and st3['n'] >= 20 and any('/video/:/transcode/universal/subtitles' in h and 'subtitles=sidecar' in h for h in hits), st3)
+        await key('Escape', 200); await key('Escape', 900)
+        # 2) Plex refuses that too: Plume reads the lines out of the file, never the whole video
+        subsmode['plexsub'] = 'refuse'; subsmode['ranges'] = 0
+        await ev("P.Plex.open({key:'404', title:'Subtitled', offset:0, copies:[]})"); await pg.wait_for_timeout(1200)
+        st4 = await ev("(function(){var s=P.Player.debug();return {how:s.subHow, n:(s.cues||[]).length, mode:s.fileSubs&&s.fileSubs.R.mode, used:s.fileSubs&&s.fileSubs.R.used(), log:s.subLog}})()")
+        check('...else read from the file: the right track, in small parts', st4['how'] == 'Read from the file' and st4['mode'] == 'index' and st4['n'] >= 8 and subsmode['ranges'] > 3 and not subsmode.get('whole'), st4)
+        shown = set()
+        for _ in range(8):
+            shown.add(await ev("document.getElementById('plSub').textContent")); shown.add('TOP:' + await ev("document.getElementById('plSubTop').textContent"))
+            await pg.wait_for_timeout(250)
+        check('...lines show in time; the Sign style goes on top; no drawn shapes', any('سطر رقم' in x for x in shown) and 'TOP:لافتة المطعم' in shown and not any('m 0 0' in x for x in shown), sorted(shown))
+        check('top lines are centred like the others', await ev("getComputedStyle(document.getElementById('plSubTop')).display") == 'block')
+        await shot('p9-subs-from-file')
+        await key('Escape', 200); await key('Escape', 900)
+        subsmode['plexsub'] = None
+        await ev("window.__staleErrors = true; window.__absTime = true")
         # a remuxed stream that reports the title's own time: the clock still counts once
         subsmode['master'] = 'text'
         await ev("window.__failBurn = false")

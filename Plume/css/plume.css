@@ -485,7 +485,7 @@ body.input-on .alert { visibility: visible; }
 .sh-ep.here .sh-t::after { content: ' ·  Continue watching'; font-size: 22px; color: var(--fg2); font-weight: 400; }
 .sh-s { font-size: 22px; color: var(--fg2); margin-top: 6px; }
 .sh-d { font-size: 21px; color: var(--fg2); margin-top: 10px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 1100px; }
-.pl-sub.top { top: 70px; bottom: auto; }
+.pl-sub.top { top: 70px; bottom: auto; display: block; }   /* not the home header's .top layout */
 .pl.ui-on .pl-sub.top { top: 200px; bottom: auto; }
 
 /* ---------- match list: slides on the graphics chip; the focus is a ready-made layer that fades ---------- */
